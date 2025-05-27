@@ -6,14 +6,14 @@ CrowdCash to multiplatformowa aplikacja, która umożliwia inwestorom indywidual
 
 ## ✨ **Główne funkcjonalności**
 
-✅ Rejestracja i logowanie inwestorów oraz przedsiębiorców
-✅ Personalizowany feed inwestycyjny według lokalizacji i zainteresowań
-✅ Przeglądanie, filtrowanie i wyszukiwanie kampanii inwestycyjnych
-✅ Wpłaty online zintegrowane z systemem płatności TPay
-✅ System rozliczeń pomiędzy inwestorami, platformą i przedsiębiorcami
-✅ Panele administracyjne dla przedsiębiorców i właściciela platformy
-✅ Powiadomienia o statusach inwestycji i kampanii
-✅ Obsługa wieloplatformowa: aplikacja mobilna (React Native) + aplikacja webowa (React.js)
+✅ Rejestracja i logowanie inwestorów oraz przedsiębiorców  
+✅ Personalizowany feed inwestycyjny według lokalizacji i zainteresowań  
+✅ Przeglądanie, filtrowanie i wyszukiwanie kampanii inwestycyjnych  
+✅ Wpłaty online zintegrowane z systemem płatności TPay  
+✅ System rozliczeń pomiędzy inwestorami, platformą i przedsiębiorcami  
+✅ Panele administracyjne dla przedsiębiorców i właściciela platformy  
+✅ Powiadomienia o statusach inwestycji i kampanii  
+✅ Obsługa wieloplatformowa: aplikacja mobilna (React Native) + aplikacja webowa (React.js)  
 
 ---
 
