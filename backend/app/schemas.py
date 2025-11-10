@@ -8,20 +8,21 @@ from pydantic import BaseModel, EmailStr, Field
 # --- USER ---
 class UserBase(BaseModel):
     email: EmailStr
-    role: str
 
 
 class UserCreate(UserBase):
     password: str
+    role: str  # tylko dla tworzenia użytkownika
 
 
 class UserOut(UserBase):
     id: uuid.UUID
+    role_id: int
     created_at: datetime
     last_login: Optional[datetime] = None
+    is_verified: bool
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # --- PROFILE ---
@@ -41,8 +42,7 @@ class ProfileOut(ProfileBase):
     id: uuid.UUID
     user_id: uuid.UUID
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # --- CAMPAIGN ---
@@ -66,8 +66,7 @@ class CampaignOut(CampaignBase):
     status: str
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # --- INVESTMENT ---
@@ -86,8 +85,7 @@ class InvestmentOut(InvestmentBase):
     status: str
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 class InvestmentHistoryOut(BaseModel):
@@ -99,8 +97,7 @@ class InvestmentHistoryOut(BaseModel):
     campaign_title: str | None = None
     campaign_status: str | None = None
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # --- TRANSACTION ---
@@ -121,8 +118,7 @@ class TransactionOut(TransactionBase):
     status: str
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # --- PAYOUT ---
@@ -143,8 +139,7 @@ class PayoutOut(PayoutBase):
     campaign_id: uuid.UUID
     status: str
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # --- NOTIFICATION ---
@@ -163,8 +158,7 @@ class NotificationOut(NotificationBase):
     user_id: uuid.UUID
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # --- ADMIN LOG ---
@@ -182,8 +176,7 @@ class AdminLogOut(AdminLogBase):
     admin_id: uuid.UUID
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 
 # --- FOLLOW ---
@@ -202,5 +195,70 @@ class FollowOut(BaseModel):
     entrepreneur_id: uuid.UUID
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
+
+
+# --- REGION ---
+class RegionCountry(BaseModel):
+    id: uuid.UUID
+    name: str
+    code: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class RegionState(BaseModel):
+    id: uuid.UUID
+    name: str
+    code: str | None = None
+    country_id: uuid.UUID
+
+    model_config = {"from_attributes": True}
+
+
+class RegionCity(BaseModel):
+    id: uuid.UUID
+    name: str
+    state_id: uuid.UUID
+    country_id: uuid.UUID
+
+    model_config = {"from_attributes": True}
+
+
+# --- ENTREPRENEUR REGISTRATION ---
+class EntrepreneurRegister(BaseModel):
+    email: EmailStr
+    password: str
+    role: str = 'entrepreneur'
+    company_name: str
+    nip: str
+    city_id: uuid.UUID
+
+
+class EntrepreneurOut(BaseModel):
+    id: uuid.UUID
+    email: EmailStr
+    role: str
+    company_name: str
+    nip: str
+    city_id: uuid.UUID
+    created_at: datetime
+    last_login: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# --- ROLE AND PERMISSION ---
+class PermissionOut(BaseModel):
+    id: int
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
+class RoleOut(BaseModel):
+    id: int
+    name: str
+    permissions: List[PermissionOut]
+
+    model_config = {"from_attributes": True}

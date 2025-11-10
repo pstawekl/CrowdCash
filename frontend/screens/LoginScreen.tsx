@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Alert, Button, StyleSheet, TextInput, View } from 'react-native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import API from '../utils/api';
+import { updateAuthState } from '../utils/auth';
+import { UserRoleEnum } from '../utils/roles';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -38,22 +40,32 @@ export default function LoginScreen({ navigation }: Props) {
                 }
                 await AsyncStorage.setItem('authToken', token); // Zapisz tylko access_token jako string
                 // Pobierz profil użytkownika, aby sprawdzić rolę i weryfikację
-                const profileRes = await API.get('/me', {
+                const profileRes = await API.get('/auth/me', {
                     headers: { Authorization: `Bearer ${token}` },
                 });
-                const { role, email, is_verified } = profileRes.data;
-                await AsyncStorage.setItem('userRole', role);
-                console.log('Zalogowano jako:', role, '/ Zweryfikowany:', is_verified);
+                const { role_id, email, is_verified } = profileRes.data;
+                await AsyncStorage.setItem('userRole', role_id.toString());
+                // Pobierz uprawnienia
+                type PermissionOut = { id: number; name: string };
+                const permRes = await API.get('/auth/permissions', {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                await AsyncStorage.setItem('userPermissions', JSON.stringify((permRes.data as PermissionOut[]).map((p) => p.name)));
+                console.log('Zalogowano jako:', role_id, '/ Zweryfikowany:', is_verified);
+
+                // Natychmiast zaktualizuj stan autoryzacji
+                updateAuthState();
                 if (!is_verified) {
                     Alert.alert('Weryfikacja wymagana', 'Twoje konto nie zostało jeszcze zweryfikowane. Sprawdź email.');
                     navigation.replace('Verify', { email });
                     return;
                 }
-                if (role === 'entrepreneur') {
+                if (role_id === UserRoleEnum.entrepreneur) {
                     navigation.replace('EntrepreneurDashboard');
-                } else if (role === 'investor') {
-                    console.log("Ide do InvestorFeed");
+                } else if (role_id === UserRoleEnum.investor) {
                     navigation.replace('InvestorFeed');
+                } else if (role_id === UserRoleEnum.admin) {
+                    navigation.replace('EntrepreneurDashboard'); // lub inny ekran admina
                 } else {
                     Alert.alert('Błąd', 'Nieznana rola użytkownika.');
                 }

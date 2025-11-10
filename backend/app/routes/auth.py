@@ -6,7 +6,7 @@ from app import crud, models, schemas, utils
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.email import send_email
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Form, Header, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -25,26 +25,76 @@ def generate_verification_code(length: int = 6):
 
 
 @router.post("/register", response_model=schemas.UserOut)
-async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Sprawdź, czy użytkownik już istnieje
-    existing_user = crud.get_user_by_email(db, email=user.email)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    verification_code = generate_verification_code()
-    new_user = crud.create_user(
-        db, user=user, verification_code=verification_code)
-
-    try:
-        send_verification_email(new_user.email, verification_code)
-        # Możesz dodać logowanie akcji
-    except Exception as e:
-        db.delete(new_user)
+async def register_user(
+    email: str = Form(default=None),
+    password: str = Form(default=None),
+    role: str = Form(default=None),
+    company_name: str = Form(default=None),
+    nip: str = Form(default=None),
+    city_id: str = Form(default=None),
+    street: str = Form(default=None),
+    building_number: str = Form(default=None),
+    apartment_number: str = Form(default=None),
+    postal_code: str = Form(default=None),
+    db: Session = Depends(get_db)
+):
+    # Rozpoznaj typ rejestracji
+    if role == 'entrepreneur':
+        # Walidacja pól przedsiębiorcy
+        if not (company_name and nip and city_id):
+            raise HTTPException(
+                status_code=422, detail="Brak wymaganych danych firmy")
+        # Sprawdź, czy użytkownik już istnieje
+        existing_user = crud.get_user_by_email(db, email=email)
+        if existing_user:
+            raise HTTPException(
+                status_code=400, detail="Email already registered")
+        verification_code = generate_verification_code()
+        # Tworzenie użytkownika
+        new_user = crud.create_user(
+            db, user=schemas.UserCreate(email=email, password=password, role='entrepreneur'), verification_code=verification_code)
+        # Tworzenie firmy (Company)
+        company = models.Company(
+            nip=nip,
+            company_name=company_name,
+            city=city_id,
+            country=None,
+            street=street,
+            building_number=building_number,
+            apartment_number=apartment_number,
+            postal_code=postal_code
+        )
+        db.add(company)
         db.commit()
-        raise HTTPException(
-            status_code=500, detail=f"Failed to send email: {e}")
-
-    return new_user
+        db.refresh(company)
+        try:
+            send_verification_email(new_user.email, verification_code)
+        except Exception as e:
+            db.delete(new_user)
+            db.commit()
+            raise HTTPException(
+                status_code=500, detail=f"Failed to send email: {e}")
+        return new_user
+    else:
+        # Standardowa rejestracja inwestora
+        if not (email and password and role):
+            raise HTTPException(
+                status_code=422, detail="Brak wymaganych danych")
+        existing_user = crud.get_user_by_email(db, email=email)
+        if existing_user:
+            raise HTTPException(
+                status_code=400, detail="Email already registered")
+        verification_code = generate_verification_code()
+        new_user = crud.create_user(db, user=schemas.UserCreate(
+            email=email, password=password, role=role), verification_code=verification_code)
+        try:
+            send_verification_email(new_user.email, verification_code)
+        except Exception as e:
+            db.delete(new_user)
+            db.commit()
+            raise HTTPException(
+                status_code=500, detail=f"Failed to send email: {e}")
+        return new_user
 
 
 @router.get("/resend-verification-code")
@@ -79,6 +129,7 @@ async def resend_verification_code(email: str, db: Session = Depends(get_db)):
 async def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(
         models.User.email == form_data.username).first()
+    print("in login")
     if not db_user or not utils.verify_password(form_data.password, db_user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     # POZWÓL LOGOWAĆ SIĘ NIEZWERYFIKOWANYM UŻYTKOWNIKOM
@@ -100,16 +151,6 @@ async def delete_user(email: str, db: Session = Depends(get_db)):
     return {"message": "User deleted successfully"}
 
 
-@router.get("/me")
-async def get_current_user_data(db: Session = Depends(get_db), current_user: models.User = Depends(utils.get_current_user)):
-    user = crud.get_user_by_email(db, email=current_user.email)
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
-
-
 @router.post("/refresh")
 async def refresh_token(current_token: str = Depends(utils.oauth2_scheme), db: Session = Depends(get_db)):
     """
@@ -127,7 +168,19 @@ async def get_profile(db: Session = Depends(get_db), current_user: models.User =
         models.Profile.user_id == current_user.id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
-    return profile
+
+    # Konwertuj UUID na stringi dla zgodności z frontendem
+    profile_dict = {
+        "id": str(profile.id),
+        "user_id": str(profile.user_id),
+        "name": profile.name,
+        "bio": profile.bio,
+        "location": profile.location,
+        "interests": profile.interests,
+        "profile_picture_url": profile.profile_picture_url
+    }
+
+    return profile_dict
 
 
 @router.put("/profile", response_model=schemas.ProfileOut)
@@ -147,7 +200,19 @@ async def update_profile(
         setattr(profile, field, value)
     db.commit()
     db.refresh(profile)
-    return profile
+
+    # Konwertuj UUID na stringi dla zgodności z frontendem
+    profile_dict = {
+        "id": str(profile.id),
+        "user_id": str(profile.user_id),
+        "name": profile.name,
+        "bio": profile.bio,
+        "location": profile.location,
+        "interests": profile.interests,
+        "profile_picture_url": profile.profile_picture_url
+    }
+
+    return profile_dict
 
 
 @router.post("/verify")
@@ -166,3 +231,36 @@ async def verify_user(data: dict, db: Session = Depends(get_db)):
     user.verification_code = None
     crud.update_user(db, user=user)
     return {"message": "Account verified"}
+
+
+@router.get("/permissions", response_model=list[schemas.PermissionOut])
+async def get_user_permissions(current_user: models.User = Depends(utils.get_current_user), db: Session = Depends(get_db)):
+    role = db.query(models.Role).filter(
+        models.Role.id == current_user.role_id).first()
+    if not role:
+        return []
+    return role.permissions
+
+
+@router.get("/me", response_model=schemas.UserOut)
+async def get_current_user_info(db: Session = Depends(get_db), current_user: models.User = Depends(utils.get_current_user)):
+    """
+    Zwraca informacje o aktualnie zalogowanym użytkowniku.
+    """
+    # Pobierz pełne dane użytkownika z bazy danych
+    user = crud.get_user_by_email(db, email=current_user.email)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Konwertuj UUID na stringi dla zgodności z frontendem
+    user_dict = {
+        "id": str(user.id),
+        "email": user.email,
+        "role_id": user.role_id,
+        "created_at": user.created_at,
+        "last_login": user.last_login,
+        "is_verified": user.is_verified
+    }
+
+    return user_dict

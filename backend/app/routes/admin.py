@@ -9,7 +9,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 def admin_required(current_user: models.User = Depends(utils.get_current_user)):
-    if current_user.role != "admin":
+    if current_user.role.name != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 

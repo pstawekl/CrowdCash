@@ -3,9 +3,15 @@ from datetime import datetime
 
 from app.core.database import Base
 from sqlalchemy import (Boolean, CheckConstraint, Column, DateTime, ForeignKey,
-                        Numeric, String, Text)
+                        Integer, Numeric, String, Table, Text)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, NUMERIC, UUID
 from sqlalchemy.orm import relationship
+
+role_permission = Table(
+    'role_permission', Base.metadata,
+    Column('role_id', Integer, ForeignKey('roles.id')),
+    Column('permission_id', Integer, ForeignKey('permissions.id'))
+)
 
 
 class User(Base):
@@ -14,8 +20,7 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(Text, unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
-    role = Column(String, CheckConstraint(
-        "role IN ('investor', 'entrepreneur', 'admin')"), nullable=False)
+    role_id = Column(Integer, ForeignKey('roles.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime)
     verification_code = Column(Text, nullable=True)
@@ -35,6 +40,7 @@ class User(Base):
                            cascade="all, delete-orphan")
     follows = relationship(
         'Follow', foreign_keys='Follow.investor_id', back_populates='investor')
+    role = relationship('Role', back_populates='users')
 
 
 class Profile(Base):
@@ -167,3 +173,93 @@ class Follow(Base):
     investor = relationship('User', foreign_keys=[
                             investor_id], back_populates='follows')
     entrepreneur = relationship('User', foreign_keys=[entrepreneur_id])
+
+
+class RegionCountry(Base):
+    __tablename__ = 'region_countries'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    geonameid = Column(String, unique=True, nullable=True)
+    name = Column(Text, nullable=False)
+    asciiname = Column(Text)
+    alternatenames = Column(Text)
+    country_code = Column(String(10), nullable=True, unique=True)  # np. PL, US
+    population = Column(Numeric, nullable=True)
+    timezone = Column(Text)
+
+
+class RegionState(Base):
+    __tablename__ = 'region_states'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    geonameid = Column(String, unique=True, nullable=True)
+    name = Column(Text, nullable=False)
+    asciiname = Column(Text)
+    alternatenames = Column(Text)
+    admin1_code = Column(String(20), nullable=True)
+    country_id = Column(UUID(as_uuid=True), ForeignKey(
+        'region_countries.id', ondelete='CASCADE'))
+    population = Column(Numeric, nullable=True)
+    timezone = Column(Text)
+    country = relationship('RegionCountry')
+
+
+class RegionCity(Base):
+    __tablename__ = 'region_cities'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    geonameid = Column(String, unique=True, nullable=True)
+    name = Column(Text, nullable=False)
+    asciiname = Column(Text)
+    alternatenames = Column(Text)
+    latitude = Column(String)
+    longitude = Column(String)
+    feature_class = Column(String)
+    feature_code = Column(String)
+    country_id = Column(UUID(as_uuid=True), ForeignKey(
+        'region_countries.id', ondelete='CASCADE'))
+    state_id = Column(UUID(as_uuid=True), ForeignKey(
+        'region_states.id', ondelete='CASCADE'), nullable=True)
+    admin1_code = Column(String(20), nullable=True)
+    admin2_code = Column(String(20), nullable=True)
+    admin3_code = Column(String(20), nullable=True)
+    admin4_code = Column(String(20), nullable=True)
+    population = Column(Numeric, nullable=True)
+    elevation = Column(String)
+    dem = Column(String)
+    timezone = Column(Text)
+    modification_date = Column(String)
+    state = relationship('RegionState')
+    country = relationship('RegionCountry')
+
+
+class Company(Base):
+    __tablename__ = 'companies'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    nip = Column(String(20), unique=True, nullable=False)
+    regon = Column(String(20), nullable=True)
+    krs = Column(String(20), nullable=True)
+    company_name = Column(Text, nullable=False)
+    street = Column(Text, nullable=True)
+    building_number = Column(String(20), nullable=True)
+    apartment_number = Column(String(20), nullable=True)
+    postal_code = Column(String(20), nullable=True)
+    city = Column(Text, nullable=True)
+    country = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow,
+                        onupdate=datetime.utcnow)
+
+
+class Role(Base):
+    __tablename__ = 'roles'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, unique=True, nullable=False)
+    permissions = relationship(
+        'Permission', secondary=role_permission, back_populates='roles')
+    users = relationship('User', back_populates='role')
+
+
+class Permission(Base):
+    __tablename__ = 'permissions'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+    roles = relationship('Role', secondary=role_permission,
+                         back_populates='permissions')

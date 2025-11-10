@@ -6,7 +6,7 @@ from app import models, schemas, utils
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.email import send_email
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -74,7 +74,7 @@ async def get_transaction(transaction_id: UUID, db: Session = Depends(get_db), c
 
 @router.post("/initiate-tpay")
 async def initiate_tpay_payment(
-    investment_id: UUID,
+    investment_id: UUID = Body(embed=True),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(utils.get_current_user)
 ):

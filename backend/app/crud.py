@@ -21,10 +21,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # Tworzenie nowego użytkownika
 def create_user(db: Session, user: schemas.UserCreate, verification_code: str):
     hashed_password = hash_password(user.password)
+
+    # Znajdź role po nazwie
+    role = db.query(models.Role).filter(models.Role.name == user.role).first()
+    if not role:
+        # Jeśli rola nie istnieje, utwórz ją
+        role = models.Role(name=user.role)
+        db.add(role)
+        db.flush()  # żeby dostać ID
+
     db_user = models.User(
         email=user.email,
         password_hash=hashed_password,
-        role=user.role,
+        role_id=role.id,
         verification_code=verification_code,
         is_verified=False,
     )

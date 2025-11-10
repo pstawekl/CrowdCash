@@ -1,0 +1,55 @@
+import { RouterProvider, createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
+import MainLayout from './layouts/MainLayout';
+import EntrepreneurDashboard from './pages/EntrepreneurDashboard';
+import EntrepreneurProfile from './pages/EntrepreneurProfile';
+import Home from './pages/Home';
+import InvestmentDetails from './pages/InvestmentDetails';
+import Investments from './pages/Investments';
+import InvestorDashboard from './pages/InvestorDashboard';
+import InvestorFeed from './pages/InvestorFeed';
+import Login from './pages/Login';
+import NotFound from './pages/NotFound';
+import Notifications from './pages/Notifications';
+import Register from './pages/Register';
+import Transactions from './pages/Transactions';
+import Verify from './pages/Verify';
+
+const rootRoute = createRootRoute({
+    component: MainLayout,
+});
+
+const homeRoute = createRoute({ path: '/', getParentRoute: () => rootRoute, component: Home });
+const loginRoute = createRoute({ path: '/login', getParentRoute: () => rootRoute, component: Login });
+const registerRoute = createRoute({ path: '/register', getParentRoute: () => rootRoute, component: Register });
+const verifyRoute = createRoute({ path: '/verify', getParentRoute: () => rootRoute, component: Verify });
+const feedRoute = createRoute({ path: '/feed', getParentRoute: () => rootRoute, component: InvestorFeed });
+const dashboardRoute = createRoute({ path: '/dashboard', getParentRoute: () => rootRoute, component: EntrepreneurDashboard });
+const investorDashboardRoute = createRoute({ path: '/investor-dashboard', getParentRoute: () => rootRoute, component: InvestorDashboard });
+const investmentsRoute = createRoute({ path: '/investments', getParentRoute: () => rootRoute, component: Investments });
+const campaignRoute = createRoute({ path: '/campaign/$id', getParentRoute: () => rootRoute, component: InvestmentDetails });
+const entrepreneurProfileRoute = createRoute({ path: '/profile/$entrepreneurId', getParentRoute: () => rootRoute, component: EntrepreneurProfile });
+const notificationsRoute = createRoute({ path: '/notifications', getParentRoute: () => rootRoute, component: Notifications });
+const transactionsRoute = createRoute({ path: '/transactions', getParentRoute: () => rootRoute, component: Transactions });
+const notFoundRoute = createRoute({ path: '*', getParentRoute: () => rootRoute, component: NotFound });
+
+const routeTree = rootRoute.addChildren([
+    homeRoute,
+    loginRoute,
+    registerRoute,
+    verifyRoute,
+    feedRoute,
+    dashboardRoute,
+    investorDashboardRoute,
+    investmentsRoute,
+    campaignRoute,
+    entrepreneurProfileRoute,
+    notificationsRoute,
+    transactionsRoute,
+    notFoundRoute,
+]);
+
+const router = createRouter({ routeTree });
+
+export default function AppRouter() {
+    return <RouterProvider router={router} />;
+}

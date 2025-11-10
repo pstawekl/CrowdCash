@@ -9,8 +9,8 @@ colorama
 dnspython
 ecdsa
 email_validator
-fastapi
-fastapi-mail
+fastapi==0.104.1
+fastapi-mail==1.4.1
 greenlet
 h11
 idna
@@ -20,9 +20,9 @@ MarkupSafe
 passlib
 psycopg2-binary
 pyasn1
-pydantic
-pydantic_core
-pydantic-settings
+pydantic==2.5.0
+pydantic_core==2.14.5
+pydantic-settings==2.1.0
 PyJWT
 python-dotenv
 python-jose
@@ -30,8 +30,8 @@ python-multipart
 rsa
 six
 sniffio
-SQLAlchemy
-starlette
-typing_extensions
-typing-inspection
-uvicorn
+SQLAlchemy==2.0.23
+starlette==0.27.0
+typing_extensions==4.9.0
+typing-inspection==0.4.0
+uvicorn==0.24.0
