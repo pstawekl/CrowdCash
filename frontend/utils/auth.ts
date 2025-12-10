@@ -21,17 +21,62 @@ export function useAuth(): AuthState {
   const checkAuth = async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
-      const role = await AsyncStorage.getItem('userRole');
-      setAuthState({
-        isAuthenticated: !!token,
-        role,
-        isLoading: false,
-      });
+      if (!token) {
+        setAuthState({
+          isAuthenticated: false,
+          role: null,
+          isLoading: false,
+        });
+        return;
+      }
+
+      // Sprawdź czy token jest nadal ważny przez wywołanie API
+      try {
+        const API = (await import('./api')).default;
+        await API.get('/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        // Token jest ważny
+        const role = await AsyncStorage.getItem('userRole');
+        setAuthState({
+          isAuthenticated: true,
+          role,
+          isLoading: false,
+        });
+      } catch (apiError: any) {
+        // Sprawdź czy to rzeczywiście błąd autoryzacji (401) czy błąd sieciowy
+        const status = apiError?.response?.status;
+        
+        // Tylko przy 401 (Unauthorized) wyczyść sesję
+        // Przy błędach sieciowych (brak response) - zachowaj sesję
+        if (status === 401) {
+          console.log('Token nieważny (401) - czyszczenie sesji');
+          await AsyncStorage.multiRemove(['authToken', 'userRole', 'userPermissions']);
+          setAuthState({
+            isAuthenticated: false,
+            role: null,
+            isLoading: false,
+          });
+        } else {
+          // Błąd sieciowy lub inny - zachowaj sesję i użyj zapisanych danych
+          console.log('Błąd sieciowy, zachowuję sesję:', status || 'no response');
+          const role = await AsyncStorage.getItem('userRole');
+          setAuthState({
+            isAuthenticated: !!role,
+            role,
+            isLoading: false,
+          });
+        }
+      }
     } catch (error) {
       console.error('Error checking auth:', error);
+      // Przy błędach - zachowaj sesję jeśli jest token
+      const token = await AsyncStorage.getItem('authToken');
+      const role = await AsyncStorage.getItem('userRole');
       setAuthState({
-        isAuthenticated: false,
-        role: null,
+        isAuthenticated: !!token && !!role,
+        role,
         isLoading: false,
       });
     }
@@ -41,14 +86,9 @@ export function useAuth(): AuthState {
     // Sprawdź na starcie
     checkAuth();
 
-    // Dodaj listener na focus, żeby odświeżać stan po powrocie do ekranu
-    const focusListener = () => {
-      checkAuth();
-    };
-
-    // W React Native możemy użyć focus listener z navigation
-    // Ale na razie zrobimy prostsze rozwiązanie z setInterval
-    const interval = setInterval(checkAuth, 2000); // Zwiększono do 2 sekund
+    // Sprawdzaj rzadziej - co 5 minut (zamiast co 30 sekund)
+    // Token będzie automatycznie odświeżany przez interceptor API
+    const interval = setInterval(checkAuth, 300000); // 5 minut
 
     return () => {
       clearInterval(interval);

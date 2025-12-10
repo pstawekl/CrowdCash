@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-
+from pydantic import field_validator, ConfigDict
+import json
 
 class Settings(BaseSettings):
     database_url: str
@@ -13,13 +14,17 @@ class Settings(BaseSettings):
     mail_port: int
     mail_use_tls: bool
     app_name: str
-    tpay_merchant_id: str
-    tpay_api_key: str
-    tpay_api_password: str
-    tpay_api_url: str
+    stripe_secret_key: str
+    stripe_webhook_secret: str
+    supported_currencies: str
+    success_payment_url: str
+    fail_payment_url: str
+    supported_payment_methods: str
 
-    class Config:
-        env_file = ".env"
+    model_config = ConfigDict(
+        env_file=".env",
+        extra="ignore"  # Ignoruj dodatkowe pola z .env (np. stare zmienne TPay)
+    )
 
 
 settings = Settings()

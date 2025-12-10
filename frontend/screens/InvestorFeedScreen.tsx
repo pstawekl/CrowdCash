@@ -1,9 +1,11 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, FlatList, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Dimensions, FlatList, Image, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Loader from '../components/Loader';
 import RequirePermission from '../components/RequirePermission';
-import API from '../utils/api';
+import API, { getResourceURL } from '../utils/api';
 
 export default function InvestorFeedScreen({ navigation }: any) {
     const [campaigns, setCampaigns] = useState<any[]>([]);
@@ -44,13 +46,11 @@ export default function InvestorFeedScreen({ navigation }: any) {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 setFollowing(following.filter(id => id !== entrepreneurId));
-                Alert.alert('Przestano obserwować przedsiębiorcę');
             } else {
                 await API.post(`/users/follow/${entrepreneurId}`, {}, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 setFollowing([...following, entrepreneurId]);
-                Alert.alert('Obserwujesz tego przedsiębiorcę!');
             }
         } catch (e: any) {
             Alert.alert('Błąd', e?.response?.data?.detail || 'Nie udało się zmienić obserwowania');
@@ -64,63 +64,195 @@ export default function InvestorFeedScreen({ navigation }: any) {
     // Kampanie są już przefiltrowane po stronie backendu
     const filteredCampaigns = campaigns;
 
+    const formatCurrency = (amount: number | string | null | undefined) => {
+        if (amount === null || amount === undefined) return '-';
+        if (typeof amount === 'string') return amount;
+        return new Intl.NumberFormat('pl-PL', {
+            style: 'currency',
+            currency: 'PLN',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(amount);
+    };
+
     if (loading) return <Loader />;
 
     return (
         <RequirePermission permission="view_feed" navigation={navigation}>
-            <SafeAreaView style={styles.safeArea}>
-                <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
-                    {/* <Text style={styles.title}>Feed kampanii</Text> */}
-                    <TextInput
-                        placeholder="Szukaj kampanii..."
-                        value={search}
-                        onChangeText={setSearch}
-                        style={styles.input}
-                    />
+            <LinearGradient
+                colors={['#f9fafb', '#ecfdf5', '#dcfce7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.container}
+            >
+                <SafeAreaView style={styles.safeArea}>
+                    <View style={styles.searchContainer}>
+                        <MaterialIcons name="search" size={20} color="#6b7280" style={styles.searchIcon} />
+                        <TextInput
+                            placeholder="Szukaj kampanii..."
+                            placeholderTextColor="#9ca3af"
+                            value={search}
+                            onChangeText={setSearch}
+                            style={styles.input}
+                        />
+                    </View>
                     <FlatList
                         data={filteredCampaigns}
                         keyExtractor={item => (item && item.id ? String(item.id) : Math.random().toString())}
                         renderItem={({ item }) => {
                             if (!item || typeof item !== 'object') return null;
-                            // Fallbacky na brakujące pola
                             const title = item.title || 'Brak tytułu';
                             const status = item.status || '-';
-                            const current_amount = item.current_amount ?? '-';
-                            const goal_amount = item.goal_amount ?? '-';
+                            const current_amount = item.current_amount ?? 0;
+                            const goal_amount = item.goal_amount ?? 0;
+                            const percent = goal_amount > 0 ? Math.min(Math.round((current_amount / goal_amount) * 100), 100) : 0;
                             let deadline = '-';
                             try {
-                                deadline = item.deadline ? new Date(item.deadline).toLocaleDateString() : '-';
+                                deadline = item.deadline ? new Date(item.deadline).toLocaleDateString('pl-PL') : '-';
                             } catch (e) { deadline = '-'; }
                             const entrepreneur_id = item.entrepreneur_id || '-';
+                            const isFollowing = entrepreneur_id !== '-' && following.includes(entrepreneur_id);
+                            const images = item.images && Array.isArray(item.images) ? item.images : [];
+                            const imageUrls = images.length > 0 
+                                ? images.map((img: any) => getResourceURL(img.image_url)).filter((url: string) => url)
+                                : [];
+                            const description = item.description || '';
+                            
+                            // Component for image slider
+                            const CampaignImageSlider = () => {
+                                const [currentImageIndex, setCurrentImageIndex] = useState(0);
+                                const imageSliderRef = useRef<FlatList>(null);
+                                const cardWidth = Dimensions.get('window').width - 32;
+                                
+                                if (imageUrls.length === 0) return null;
+                                
+                                return (
+                                    <View style={styles.campaignImageContainer}>
+                                        <FlatList
+                                            ref={imageSliderRef}
+                                            data={imageUrls}
+                                            horizontal
+                                            pagingEnabled
+                                            showsHorizontalScrollIndicator={false}
+                                            keyExtractor={(url, index) => `campaign-image-${item.id}-${index}`}
+                                            onMomentumScrollEnd={(event) => {
+                                                const index = Math.round(event.nativeEvent.contentOffset.x / cardWidth);
+                                                setCurrentImageIndex(index);
+                                            }}
+                                            renderItem={({ item: imageUrl }) => (
+                                                <View style={[styles.campaignImageSlide, { width: cardWidth }]}>
+                                                    <Image
+                                                        source={{ uri: imageUrl }}
+                                                        style={styles.campaignImage}
+                                                        resizeMode="cover"
+                                                    />
+                                                </View>
+                                            )}
+                                            getItemLayout={(data, index) => ({
+                                                length: cardWidth,
+                                                offset: cardWidth * index,
+                                                index,
+                                            })}
+                                            scrollEnabled={imageUrls.length > 1}
+                                            nestedScrollEnabled={true}
+                                            scrollEventThrottle={16}
+                                            decelerationRate="fast"
+                                            snapToInterval={cardWidth}
+                                            snapToAlignment="start"
+                                        />
+                                        {/* Image Counter */}
+                                        {imageUrls.length > 1 && (
+                                            <View style={styles.campaignImageCounter} pointerEvents="none">
+                                                <Text style={styles.campaignImageCounterText}>
+                                                    {currentImageIndex + 1} / {imageUrls.length}
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                );
+                            };
+                            
                             return (
-                                <TouchableOpacity
-                                    style={styles.item}
-                                    onPress={() => item.id && navigation.navigate('InvestmentDetails', { campaignId: item.id })}
-                                >
-                                    <Text style={styles.campaign}>{title}</Text>
-                                    <Text style={styles.itemText}>Status: {status}</Text>
-                                    <Text style={styles.itemText}>Zebrano: {current_amount} / {goal_amount} PLN</Text>
-                                    <Text style={styles.itemText}>Do: {deadline}</Text>
-                                    <Text style={styles.itemText}>Przedsiębiorca: {entrepreneur_id}</Text>
+                                <View style={styles.campaignCard}>
+                                    <CampaignImageSlider />
+                                    
                                     <TouchableOpacity
-                                        style={styles.followButton}
-                                        onPress={e => {
-                                            e.stopPropagation();
-                                            if (entrepreneur_id !== '-') handleFollowToggle(entrepreneur_id);
-                                        }}
+                                        activeOpacity={0.7}
+                                        onPress={() => item.id && navigation.navigate('InvestmentDetails', { campaignId: item.id })}
                                     >
-                                        <Text style={styles.followButtonText}>
-                                            {following.includes(entrepreneur_id) ? 'Od-obserwuj' : 'Obserwuj'}
-                                        </Text>
+                                    
+                                    <View style={styles.campaignContent}>
+                                        <View style={styles.campaignHeader}>
+                                            <Text style={styles.campaignTitle} numberOfLines={2}>{title}</Text>
+                                        </View>
+                                        
+                                        {description ? (
+                                            <Text style={styles.campaignDescription} numberOfLines={3}>
+                                                {description}
+                                            </Text>
+                                        ) : null}
+                                        
+                                        <View style={styles.campaignStats}>
+                                            <View style={styles.statRow}>
+                                                <MaterialIcons name="flag" size={16} color="#6b7280" />
+                                                <Text style={styles.statLabel}>Cel:</Text>
+                                                <Text style={styles.statValue}>{formatCurrency(goal_amount)}</Text>
+                                            </View>
+                                            <View style={styles.statRow}>
+                                                <MaterialIcons name="trending-up" size={16} color="#16a34a" />
+                                                <Text style={styles.statLabel}>Zebrano:</Text>
+                                                <Text style={styles.statValue}>{formatCurrency(current_amount)}</Text>
+                                            </View>
+                                        </View>
+                                        
+                                        <View style={styles.progressContainer}>
+                                            <View style={styles.progressBar}>
+                                                <View style={[styles.progressFill, { width: `${percent}%` }]} />
+                                            </View>
+                                            <Text style={styles.progressText}>{percent}%</Text>
+                                        </View>
+                                        
+                                        {deadline !== '-' && (
+                                            <View style={styles.deadlineContainer}>
+                                                <MaterialIcons name="schedule" size={16} color="#6b7280" />
+                                                <Text style={styles.deadlineText}>Do: {deadline}</Text>
+                                            </View>
+                                        )}
+                                        
+                                        {entrepreneur_id !== '-' && (
+                                            <TouchableOpacity
+                                                style={[styles.followButton, isFollowing && styles.followButtonActive]}
+                                                onPress={e => {
+                                                    e.stopPropagation();
+                                                    handleFollowToggle(entrepreneur_id);
+                                                }}
+                                            >
+                                                <MaterialIcons 
+                                                    name={isFollowing ? "person-remove" : "person-add"} 
+                                                    size={16} 
+                                                    color={isFollowing ? "#fff" : "#16a34a"} 
+                                                />
+                                                <Text style={[styles.followButtonText, isFollowing && styles.followButtonTextActive]}>
+                                                    {isFollowing ? 'Odobserwuj' : 'Obserwuj'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
                                     </TouchableOpacity>
-                                </TouchableOpacity>
+                                </View>
                             );
                         }}
-                        ListEmptyComponent={<Text style={styles.emptyText}>Brak kampanii w feedzie</Text>}
-                        scrollEnabled={false}
+                        ListEmptyComponent={
+                            <View style={styles.emptyContainer}>
+                                <MaterialIcons name="campaign" size={64} color="#9ca3af" />
+                                <Text style={styles.emptyText}>Brak kampanii w feedzie</Text>
+                            </View>
+                        }
+                        contentContainerStyle={styles.listContent}
+                        showsVerticalScrollIndicator={false}
                     />
-                </ScrollView>
-            </SafeAreaView>
+                </SafeAreaView>
+            </LinearGradient>
         </RequirePermission>
     );
 }
@@ -128,65 +260,200 @@ export default function InvestorFeedScreen({ navigation }: any) {
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
-    safeArea: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
     container: {
         flex: 1,
-        backgroundColor: '#fff',
     },
-    scrollView: {
+    safeArea: {
         flex: 1,
     },
-    content: {
-        padding: Math.min(20, screenWidth * 0.05),
+    header: {
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e5e7eb',
     },
     title: {
-        fontSize: Math.min(24, screenWidth * 0.06),
-        fontWeight: 'bold',
-        marginBottom: Math.min(20, screenWidth * 0.05),
-        textAlign: 'center',
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: 16,
+        marginTop: 16,
+        marginBottom: 8,
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        paddingHorizontal: 12,
+    },
+    searchIcon: {
+        marginRight: 8,
     },
     input: {
+        flex: 1,
+        paddingVertical: 12,
+        fontSize: 16,
+        color: '#111827',
+    },
+    listContent: {
+        padding: 16,
+        paddingBottom: 100,
+    },
+    campaignCard: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
         borderWidth: 1,
-        borderColor: '#ccc',
-        marginBottom: Math.min(15, screenWidth * 0.04),
-        padding: Math.min(10, screenWidth * 0.025),
-        borderRadius: Math.min(6, screenWidth * 0.015),
-        fontSize: Math.min(16, screenWidth * 0.04),
+        borderColor: '#f3f4f6',
+        overflow: 'hidden',
     },
-    item: {
-        backgroundColor: '#f4f4f4',
-        borderRadius: Math.min(10, screenWidth * 0.025),
-        padding: Math.min(16, screenWidth * 0.04),
-        marginBottom: Math.min(14, screenWidth * 0.035),
+    campaignImageContainer: {
+        width: '100%',
+        height: 200,
+        position: 'relative',
+        overflow: 'hidden',
     },
-    campaign: {
-        fontSize: Math.min(18, screenWidth * 0.045),
-        fontWeight: 'bold',
-        marginBottom: 4,
+    campaignImageSlide: {
+        height: 200,
     },
-    itemText: {
-        fontSize: Math.min(14, screenWidth * 0.035),
-        marginBottom: 2,
+    campaignImage: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#f3f4f6',
+    },
+    campaignImageCounter: {
+        position: 'absolute',
+        bottom: 8,
+        right: 8,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    campaignImageCounterText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    campaignContent: {
+        padding: 20,
+    },
+    campaignHeader: {
+        marginBottom: 8,
+    },
+    campaignTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#111827',
+        lineHeight: 26,
+    },
+    campaignDescription: {
+        fontSize: 14,
+        color: '#6b7280',
+        lineHeight: 20,
+        marginBottom: 12,
+    },
+    campaignStats: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+        paddingVertical: 12,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: '#f3f4f6',
+    },
+    statRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    statLabel: {
+        fontSize: 14,
+        color: '#6b7280',
+        marginRight: 4,
+    },
+    statValue: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#111827',
+    },
+    progressContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 16,
+    },
+    progressBar: {
+        flex: 1,
+        height: 8,
+        backgroundColor: '#e5e7eb',
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    progressFill: {
+        height: '100%',
+        backgroundColor: '#16a34a',
+        borderRadius: 4,
+    },
+    progressText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#16a34a',
+        minWidth: 40,
+        textAlign: 'right',
+    },
+    deadlineContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 16,
+    },
+    deadlineText: {
+        fontSize: 14,
+        color: '#6b7280',
     },
     followButton: {
-        marginTop: Math.min(10, screenWidth * 0.025),
-        backgroundColor: '#4caf50',
-        padding: Math.min(8, screenWidth * 0.02),
-        borderRadius: Math.min(6, screenWidth * 0.015),
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 8,
+        backgroundColor: '#f0fdf4',
+        borderWidth: 1,
+        borderColor: '#16a34a',
+        gap: 6,
+    },
+    followButtonActive: {
+        backgroundColor: '#16a34a',
+        borderColor: '#059669',
     },
     followButtonText: {
+        color: '#16a34a',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    followButtonTextActive: {
         color: '#fff',
-        fontWeight: 'bold',
-        fontSize: Math.min(14, screenWidth * 0.035),
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 64,
+        gap: 16,
     },
     emptyText: {
+        fontSize: 16,
+        color: '#6b7280',
         textAlign: 'center',
-        marginTop: Math.min(30, screenWidth * 0.075),
-        fontSize: Math.min(16, screenWidth * 0.04),
-        color: '#666',
     },
 });

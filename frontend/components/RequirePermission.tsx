@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
+import API from '../utils/api';
 import { useAuth, useAuthListener } from '../utils/auth';
-import { getUserPermissions } from '../utils/permissions';
+import { getUserPermissions, setPermissionsUpdateCallback } from '../utils/permissions';
 
 interface RequirePermissionProps {
     permission: string;
@@ -18,68 +20,132 @@ export default function RequirePermission({ permission, children, navigation }: 
     // Nasłuchuj zmian autoryzacji
     useAuthListener();
 
-    useEffect(() => {
-        const checkPermission = async () => {
-            setPermLoading(true);
-            try {
-                // Jeśli auth się ładuje, poczekaj
-                if (authLoading) {
-                    return;
+    const checkPermission = useCallback(async () => {
+        setPermLoading(true);
+        try {
+            // Jeśli auth się ładuje, poczekaj
+            if (authLoading) {
+                return;
+            }
+
+            // Najpierw sprawdź czy użytkownik jest zalogowany
+            if (!isAuthenticated) {
+                console.log('RequirePermission: User not authenticated, redirecting to login');
+                if (navigation) {
+                    navigation.navigate('Login');
                 }
+                setHasPerm(false);
+                return;
+            }
 
-                // Najpierw sprawdź czy użytkownik jest zalogowany
-                if (!isAuthenticated) {
-                    console.log('RequirePermission: User not authenticated, redirecting to login');
-                    if (navigation) {
-                        navigation.navigate('Login');
-                    }
-                    setHasPerm(false);
-                    return;
-                }
-
-                // Pobierz permissions i zaktualizuj stan
-                const perms = await getUserPermissions();
-                console.log('RequirePermission: Checking permission', permission, 'against', perms);
-                setPermissions(perms);
-
-                // Sprawdź czy użytkownik ma wymagane uprawnienia
-                const permissionGranted = perms.includes(permission);
-                setHasPerm(permissionGranted);
-
-                if (!permissionGranted) {
-                    // Jeśli permissions są puste, poczekaj i sprawdź ponownie (race condition fix)
-                    if (perms.length === 0) {
-                        console.log('RequirePermission: Permissions empty, waiting and retrying...');
-                        setTimeout(async () => {
-                            const retryPerms = await getUserPermissions();
-                            setPermissions(retryPerms);
-                            const retryPermissionGranted = retryPerms.includes(permission);
-                            setHasPerm(retryPermissionGranted);
-
-                            if (!retryPermissionGranted) {
-                                console.log('RequirePermission: Permission denied after retry, redirecting to login');
-                                if (navigation) {
-                                    navigation.navigate('Login');
-                                }
+            // Pobierz permissions i zaktualizuj stan
+            let perms = await getUserPermissions();
+            console.log('RequirePermission: Checking permission', permission, 'against', perms);
+            
+            // Jeśli permissions są puste, spróbuj pobrać z API (race condition fix)
+            // Może być opóźnienie między zapisaniem uprawnień a ich odczytem
+            if (perms.length === 0) {
+                console.log('RequirePermission: Permissions empty, trying to fetch from API...');
+                const token = await AsyncStorage.getItem('authToken');
+                if (token) {
+                    try {
+                        // Spróbuj pobrać uprawnienia bezpośrednio z API
+                        const permRes = await API.get('/auth/permissions', {
+                            headers: { Authorization: `Bearer ${token}` },
+                        });
+                        const permissionNames = (permRes.data as Array<{ id: number; name: string }>).map((p) => p.name);
+                        console.log('RequirePermission: Fetched permissions from API:', permissionNames);
+                        if (permissionNames.length > 0) {
+                            // Zapisz do AsyncStorage
+                            await AsyncStorage.setItem('userPermissions', JSON.stringify(permissionNames));
+                            perms = permissionNames;
+                            // Powiadom o aktualizacji uprawnień
+                            const { notifyPermissionsUpdated } = require('../utils/permissions');
+                            if (notifyPermissionsUpdated) {
+                                notifyPermissionsUpdated();
                             }
-                        }, 1000);
-                    } else {
-                        console.log('RequirePermission: Permission denied, redirecting to login');
-                        if (navigation) {
-                            navigation.navigate('Login');
+                        }
+                    } catch (apiError: any) {
+                        console.error('RequirePermission: Error fetching permissions from API:', apiError);
+                        // Jeśli API nie działa, spróbuj jeszcze kilka razy z AsyncStorage
+                        for (let i = 0; i < 5; i++) {
+                            await new Promise(resolve => setTimeout(resolve, 300));
+                            perms = await getUserPermissions();
+                            console.log(`RequirePermission: Retry ${i + 1}/5 from storage, permissions:`, perms);
+                            if (perms.length > 0) {
+                                console.log('RequirePermission: Permissions found after retry!');
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    // Brak tokena - spróbuj jeszcze kilka razy z AsyncStorage
+                    for (let i = 0; i < 5; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        perms = await getUserPermissions();
+                        console.log(`RequirePermission: Retry ${i + 1}/5 from storage, permissions:`, perms);
+                        if (perms.length > 0) {
+                            console.log('RequirePermission: Permissions found after retry!');
+                            break;
                         }
                     }
                 }
-            } catch (error) {
-                console.error('Error checking permissions:', error);
-                setHasPerm(false);
-            } finally {
-                setPermLoading(false);
             }
-        };
+            
+            setPermissions(perms);
 
-        checkPermission();
+            // Sprawdź czy użytkownik ma wymagane uprawnienia
+            const permissionGranted = perms.includes(permission);
+            console.log('RequirePermission: Permission granted?', permissionGranted, 'for', permission);
+            setHasPerm(permissionGranted);
+
+            if (!permissionGranted) {
+                if (perms.length === 0) {
+                    console.log('RequirePermission: Permissions still empty after retries, checking if token exists...');
+                    // Sprawdź czy token istnieje - jeśli tak, to może być problem z uprawnieniami
+                    const token = await AsyncStorage.getItem('authToken');
+                    if (!token) {
+                        console.log('RequirePermission: No token found, redirecting to login');
+                        if (navigation) {
+                            navigation.navigate('Login');
+                        }
+                    } else {
+                        console.log('RequirePermission: Token exists but no permissions - possible backend issue or user has no permissions assigned');
+                        // Nie przekierowuj od razu - może być problem z backendem
+                        // Pozwól użytkownikowi zobaczyć komunikat o braku uprawnień
+                    }
+                } else {
+                    console.log('RequirePermission: Permission denied - user has permissions but not the required one:', permission);
+                    console.log('RequirePermission: User permissions:', perms);
+                    // Nie przekierowuj do logowania - użytkownik jest zalogowany, ale nie ma uprawnień
+                    // Pozwól zobaczyć komunikat o braku uprawnień
+                }
+            }
+        } catch (error) {
+            console.error('Error checking permissions:', error);
+            setHasPerm(false);
+        } finally {
+            setPermLoading(false);
+        }
     }, [isAuthenticated, permission, navigation, authLoading]);
+
+    // Nasłuchuj zmian uprawnień
+    useEffect(() => {
+        const handlePermissionsUpdate = () => {
+            console.log('RequirePermission: Permissions updated, re-checking...');
+            checkPermission();
+        };
+        
+        setPermissionsUpdateCallback(handlePermissionsUpdate);
+        
+        return () => {
+            setPermissionsUpdateCallback(null);
+        };
+    }, [checkPermission]);
+
+    useEffect(() => {
+        checkPermission();
+    }, [checkPermission]);
 
     // Sprawdź permissions ponownie gdy się zmienią
     useEffect(() => {
@@ -89,10 +155,9 @@ export default function RequirePermission({ permission, children, navigation }: 
             setHasPerm(permissionGranted);
 
             if (!permissionGranted) {
-                console.log('RequirePermission: Permission denied after update, redirecting to login');
-                if (navigation) {
-                    navigation.navigate('Login');
-                }
+                console.log('RequirePermission: Permission denied after update - user has permissions but not the required one');
+                // Nie przekierowuj - użytkownik jest zalogowany, ale nie ma uprawnień
+                // Pozwól zobaczyć komunikat o braku uprawnień
             }
         }
     }, [permissions, permission, navigation, permLoading]);

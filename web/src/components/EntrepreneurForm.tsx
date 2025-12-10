@@ -72,98 +72,149 @@ const EntrepreneurForm: React.FC<EntrepreneurFormProps> = ({ onChange }) => {
 
     return (
         <div className="space-y-4">
-            <RegionSearchBox
-                onSelect={region => setCountry(region && region.type === 'country' ? { id: region.id, name: region.name } : null)}
-                placeholder="Wybierz kraj"
-                filterType="country"
-            />
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Kraj
+                </label>
+                <RegionSearchBox
+                    onSelect={region => setCountry(region && region.type === 'country' ? { id: region.id, name: region.name } : null)}
+                    placeholder="Wybierz kraj"
+                    filterType="country"
+                />
+            </div>
             {country && (
-                <div className="flex gap-2">
-                    <input
-                        className="input input-bordered w-full"
-                        placeholder="NIP"
-                        value={nip}
-                        onChange={e => setNip(e.target.value)}
-                        required
-                    />
-                    <button
-                        type="button"
-                        className="btn btn-outline ml-2"
-                        disabled={!nip || loadingGus}
-                        onClick={async () => {
-                            setLoadingGus(true);
-                            setGusError(null);
-                            try {
-                                const res = await API.get(`/regions/gus/company/${nip}`);
-                                if (res.data) {
-                                    setGusData(res.data);
-                                    if (res.data.company_name) setCompanyName(res.data.company_name);
-                                    if (res.data.street) setStreet(res.data.street);
-                                    if (res.data.building_number) setBuildingNumber(res.data.building_number);
-                                    if (res.data.apartment_number) setApartmentNumber(res.data.apartment_number);
-                                    if (res.data.postal_code) setPostalCode(res.data.postal_code);
-                                    // Miasto zostanie ustawione automatycznie przez useEffect
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        NIP
+                    </label>
+                    <div className="flex gap-2">
+                        <input
+                            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 outline-none bg-gray-50 focus:bg-white"
+                            placeholder="NIP"
+                            value={nip}
+                            onChange={e => setNip(e.target.value)}
+                            required
+                        />
+                        <button
+                            type="button"
+                            className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 outline-none disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                            disabled={!nip || loadingGus}
+                            onClick={async () => {
+                                setLoadingGus(true);
+                                setGusError(null);
+                                try {
+                                    const res = await API.get(`/regions/gus/company/${nip}`);
+                                    if (res.data) {
+                                        setGusData(res.data);
+                                        if (res.data.company_name) setCompanyName(res.data.company_name);
+                                        if (res.data.street) setStreet(res.data.street);
+                                        if (res.data.building_number) setBuildingNumber(res.data.building_number);
+                                        if (res.data.apartment_number) setApartmentNumber(res.data.apartment_number);
+                                        if (res.data.postal_code) setPostalCode(res.data.postal_code);
+                                        // Miasto zostanie ustawione automatycznie przez useEffect
+                                    }
+                                } catch {
+                                    setGusError('Nie udało się pobrać danych z GUS.');
+                                } finally {
+                                    setLoadingGus(false);
                                 }
-                            } catch {
-                                setGusError('Nie udało się pobrać danych z GUS.');
-                            } finally {
-                                setLoadingGus(false);
-                            }
-                        }}
-                    >
-                        {loadingGus ? 'Pobieranie...' : 'Pobierz dane z GUS'}
-                    </button>
+                            }}
+                        >
+                            {loadingGus ? (
+                                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            ) : (
+                                'Pobierz z GUS'
+                            )}
+                        </button>
+                    </div>
                 </div>
             )}
-            {gusError && <div className="text-error text-sm mt-1">{gusError}</div>}
+            {gusError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                    {gusError}
+                </div>
+            )}
             {country && city && !citySearchLoading && (
-                <RegionSearchBox
-                    onSelect={region => setCity(region && region.type === 'city' ? { id: region.id, name: region.name, type: 'city' } : null)}
-                    placeholder="Wybierz miasto firmy"
-                    filterType="city"
-                    countryId={country?.id}
-                    value={city}
-                />
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Miasto
+                    </label>
+                    <RegionSearchBox
+                        onSelect={region => setCity(region && region.type === 'city' ? { id: region.id, name: region.name, type: 'city' } : null)}
+                        placeholder="Wybierz miasto firmy"
+                        filterType="city"
+                        countryId={country?.id}
+                        value={city}
+                    />
+                </div>
             )}
             {country && city && !citySearchLoading && (
                 <>
-                    <input
-                        className="input input-bordered w-full"
-                        placeholder="Nazwa firmy"
-                        value={companyName}
-                        onChange={e => setCompanyName(e.target.value)}
-                        required
-                    />
-                    <input
-                        className="input input-bordered w-full"
-                        placeholder="Ulica"
-                        value={street}
-                        onChange={e => setStreet(e.target.value)}
-                        required
-                    />
-                    <div className="flex gap-2">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Nazwa firmy
+                        </label>
                         <input
-                            className="input input-bordered w-full"
-                            placeholder="Nr domu"
-                            value={buildingNumber}
-                            onChange={e => setBuildingNumber(e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 outline-none bg-gray-50 focus:bg-white"
+                            placeholder="Nazwa firmy"
+                            value={companyName}
+                            onChange={e => setCompanyName(e.target.value)}
                             required
                         />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Ulica
+                        </label>
                         <input
-                            className="input input-bordered w-full"
-                            placeholder="Nr mieszkania (opcjonalnie)"
-                            value={apartmentNumber}
-                            onChange={e => setApartmentNumber(e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 outline-none bg-gray-50 focus:bg-white"
+                            placeholder="Ulica"
+                            value={street}
+                            onChange={e => setStreet(e.target.value)}
+                            required
                         />
                     </div>
-                    <input
-                        className="input input-bordered w-full"
-                        placeholder="Kod pocztowy"
-                        value={postalCode}
-                        onChange={e => setPostalCode(e.target.value)}
-                        required
-                        disabled={!!city}
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Nr domu
+                            </label>
+                            <input
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 outline-none bg-gray-50 focus:bg-white"
+                                placeholder="Nr domu"
+                                value={buildingNumber}
+                                onChange={e => setBuildingNumber(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Nr mieszkania <span className="text-gray-400 font-normal">(opcjonalnie)</span>
+                            </label>
+                            <input
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 outline-none bg-gray-50 focus:bg-white"
+                                placeholder="Nr mieszkania"
+                                value={apartmentNumber}
+                                onChange={e => setApartmentNumber(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Kod pocztowy
+                        </label>
+                        <input
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 outline-none bg-gray-50 focus:bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            placeholder="Kod pocztowy"
+                            value={postalCode}
+                            onChange={e => setPostalCode(e.target.value)}
+                            required
+                            disabled={!!city}
+                        />
+                    </div>
                 </>
             )}
         </div>

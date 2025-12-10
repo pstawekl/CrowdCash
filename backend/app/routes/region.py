@@ -4,12 +4,13 @@ from typing import Optional
 
 import zeep
 import zeep.helpers
-from app import models
-from app.core.database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from zeep import xsd
+
+from app import models
+from app.core.database import get_db
 
 router = APIRouter(prefix="/regions", tags=["regions"])
 
@@ -42,6 +43,8 @@ def search_regions(q: str = Query(default=..., min_length=2), type: str = Query(
             func.lower(models.RegionCountry.name).like(q_like)).limit(5).all()
         results += [{"id": str(country.id), "name": country.name,
                      "type": "country"} for country in countries]
+        
+    print ("regions searchbox results", results);
     return results
 
 
@@ -131,4 +134,5 @@ def get_company_from_gus(nip: str):
                 else:
                     print("[GUS] Wylogowanie nie powiodło się")
             except Exception as e:
+                print(f"[GUS] Błąd podczas wylogowania: {e}")
                 print(f"[GUS] Błąd podczas wylogowania: {e}")

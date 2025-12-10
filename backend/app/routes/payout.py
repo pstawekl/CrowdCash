@@ -42,7 +42,7 @@ async def create_payout(
     db.refresh(db_payout)
     # Powiadomienie email do przedsiębiorcy o utworzeniu payoutu
     send_email(
-        subject="CrowdCash: Zlecono wypłatę środków",
+        subject="Crowdoo: Zlecono wypłatę środków",
         body=f"Twoja wypłata za kampanię '{campaign.title}' została zlecona. Kwota: {db_payout.payout_amount} PLN.",
         to_email=entrepreneur.email
     )
@@ -96,13 +96,13 @@ async def update_payout_status(
     if entrepreneur:
         if status == "paid":
             send_email(
-                subject="CrowdCash: Wypłata zrealizowana",
+                subject="Crowdoo: Wypłata zrealizowana",
                 body=f"Twoja wypłata za kampanię została zrealizowana. Kwota: {payout.payout_amount} PLN.",
                 to_email=entrepreneur.email
             )
         elif status == "failed":
             send_email(
-                subject="CrowdCash: Błąd wypłaty",
+                subject="Crowdoo: Błąd wypłaty",
                 body=f"Niestety wypłata za kampanię nie powiodła się. Skontaktuj się z obsługą.",
                 to_email=entrepreneur.email
             )
@@ -156,7 +156,7 @@ async def auto_generate_payouts(db: Session = Depends(get_db), current_user: mod
             models.User.id == campaign.entrepreneur_id).first()
         if entrepreneur:
             send_email(
-                subject="CrowdCash: Automatyczna wypłata środków",
+                subject="Crowdoo: Automatyczna wypłata środków",
                 body=f"Twoja kampania '{campaign.title}' została zakończona. Wypłata {payout_amount} PLN zostanie zrealizowana 10 dnia następnego miesiąca.",
                 to_email=entrepreneur.email
             )

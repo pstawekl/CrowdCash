@@ -32,9 +32,8 @@ async def create_investment(
         status='pending',
     )
     db.add(db_investment)
-    # Aktualizacja current_amount w kampanii
-    campaign.current_amount = (campaign.current_amount or Decimal(
-        0)) + Decimal(str(investment.amount))
+    # NIE aktualizujemy current_amount tutaj - będzie aktualizowane tylko gdy płatność zostanie approved
+    # current_amount jest aktualizowane w webhooku Stripe gdy płatność zostanie zatwierdzona
     db.commit()
     db.refresh(db_investment)
 
@@ -67,11 +66,18 @@ async def list_investments(db: Session = Depends(get_db), current_user: models.U
 async def get_investment_stats(db: Session = Depends(get_db), current_user: models.User = Depends(utils.get_current_user)):
     """
     Zwraca statystyki inwestycji użytkownika (liczba i suma).
+    Liczy tylko completed inwestycje (approved płatności).
     """
     from decimal import Decimal
 
-    investments = db.query(models.Investment).filter(
-        models.Investment.investor_id == current_user.id).all()
+    # Tylko completed inwestycje (approved płatności)
+    investments = db.query(models.Investment).join(
+        models.Transaction
+    ).filter(
+        models.Investment.investor_id == current_user.id,
+        models.Investment.status == 'completed',
+        models.Transaction.status == 'successful'
+    ).all()
 
     total_amount = sum(Decimal(str(inv.amount)) for inv in investments)
     count = len(investments)
@@ -86,6 +92,7 @@ async def get_investment_stats(db: Session = Depends(get_db), current_user: mode
 async def list_campaign_investments(campaign_id: UUID, db: Session = Depends(get_db)):
     """
     Zwraca listę inwestycji dla danej kampanii.
+    Zwraca wszystkie inwestycje (również pending), ale frontend powinien filtrować do wyświetlenia.
     """
     investments = db.query(models.Investment).filter(
         models.Investment.campaign_id == campaign_id).all()
@@ -129,7 +136,8 @@ async def investment_history(
             "created_at": inv.created_at,
             "campaign_id": str(campaign.id) if campaign else None,
             "campaign_title": campaign.title if campaign else None,
-            "campaign_status": campaign.status if campaign else None
+            "campaign_status": campaign.status if campaign else None,
+            "transaction_id": str(inv.transaction_id) if inv.transaction_id else None
         })
     print(f"[DEBUG] /investments/history: result_count={len(result)}")
     return result

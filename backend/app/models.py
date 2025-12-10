@@ -58,6 +58,18 @@ class Profile(Base):
     user = relationship('User', back_populates='profile')
 
 
+class Category(Base):
+    __tablename__ = 'categories'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(Text, nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    icon = Column(Text, nullable=True)  # Można później dodać ikony
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    campaigns = relationship('Campaign', back_populates='category_rel')
+
+
 class Campaign(Base):
     __tablename__ = 'campaigns'
 
@@ -66,7 +78,8 @@ class Campaign(Base):
         'users.id', ondelete='CASCADE'))
     title = Column(Text, nullable=False)
     description = Column(Text)
-    category = Column(Text)
+    category_id = Column(UUID(as_uuid=True), ForeignKey('categories.id', ondelete='SET NULL'), nullable=True)
+    category = Column(Text)  # Zachowaj dla kompatybilności wstecznej podczas migracji
     goal_amount = Column(Numeric(12, 2), nullable=False)
     current_amount = Column(Numeric(12, 2), default=0)
     region = Column(Text)
@@ -76,10 +89,34 @@ class Campaign(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     entrepreneur = relationship('User', back_populates='campaigns')
+    category_rel = relationship('Category', back_populates='campaigns')
     investments = relationship('Investment', back_populates='campaign',
                                cascade="all, delete-orphan")
     payouts = relationship('Payout', back_populates='campaign',
                            cascade="all, delete-orphan")
+    images = relationship('CampaignImage', back_populates='campaign',
+                          cascade="all, delete-orphan", order_by='CampaignImage.order_index')
+    reward_tiers = relationship('CampaignRewardTier', back_populates='campaign',
+                                 cascade="all, delete-orphan", order_by='CampaignRewardTier.min_percentage')
+
+
+class Transaction(Base):
+    __tablename__ = 'transactions'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    stripe_transaction_id = Column(Text)
+    amount = Column(Numeric(12, 2), nullable=False)
+    fee = Column(Numeric(12, 2), default=0)
+    currency = Column(String(3), nullable=False) 
+    type = Column(String, CheckConstraint(
+        "type IN ('deposit', 'refund', 'payout')"))
+    status = Column(String, CheckConstraint(
+        "status IN ('pending', 'successful', 'failed', 'cancelled')"), default='pending')
+    status_description = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    investment = relationship('Investment', back_populates='transaction', uselist=False)
+    payout = relationship('Payout', back_populates='transaction', uselist=False)
 
 
 class Investment(Base):
@@ -90,33 +127,16 @@ class Investment(Base):
         'users.id', ondelete='CASCADE'))
     campaign_id = Column(UUID(as_uuid=True), ForeignKey(
         'campaigns.id', ondelete='CASCADE'))
+    transaction_id = Column(UUID(as_uuid=True), ForeignKey(
+        'transactions.id', ondelete='SET NULL'), nullable=True)
     amount = Column(Numeric(12, 2), nullable=False)
     status = Column(String, CheckConstraint(
         "status IN ('pending', 'completed', 'refunded')"), default='pending')
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    
     investor = relationship('User', back_populates='investments')
     campaign = relationship('Campaign', back_populates='investments')
-    transactions = relationship('Transaction', back_populates='investment',
-                                cascade="all, delete-orphan")
-
-
-class Transaction(Base):
-    __tablename__ = 'transactions'
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    investment_id = Column(UUID(as_uuid=True), ForeignKey(
-        'investments.id', ondelete='CASCADE'))
-    stripe_transaction_id = Column(Text)
-    amount = Column(Numeric(12, 2), nullable=False)
-    fee = Column(Numeric(12, 2), default=0)
-    type = Column(String, CheckConstraint(
-        "type IN ('deposit', 'refund', 'payout')"))
-    status = Column(String, CheckConstraint(
-        "status IN ('pending', 'successful', 'failed')"), default='pending')
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    investment = relationship('Investment', back_populates='transactions')
+    transaction = relationship('Transaction', back_populates='investment')
 
 
 class Payout(Base):
@@ -125,14 +145,17 @@ class Payout(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     entrepreneur_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     campaign_id = Column(UUID(as_uuid=True), ForeignKey('campaigns.id'))
+    transaction_id = Column(UUID(as_uuid=True), ForeignKey(
+        'transactions.id', ondelete='SET NULL'), nullable=True)
     total_raised = Column(Numeric(12, 2))
     payout_amount = Column(Numeric(12, 2))
     payout_date = Column(DateTime)
     status = Column(String, CheckConstraint(
         "status IN ('pending', 'paid', 'failed')"), default='pending')
-
+    
     entrepreneur = relationship('User', back_populates='payouts')
     campaign = relationship('Campaign', back_populates='payouts')
+    transaction = relationship('Transaction', back_populates='payout')
 
 
 class Notification(Base):
@@ -161,6 +184,28 @@ class AdminLog(Base):
     admin = relationship('User', back_populates='admin_logs')
 
 
+class ErrorLog(Base):
+    __tablename__ = 'error_logs'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    error_type = Column(String(100), nullable=False)  # np. 'HTTPException', 'ValueError', 'DatabaseError'
+    error_message = Column(Text, nullable=False)
+    error_details = Column(JSONB)  # Szczegóły błędu (stack trace, request info, etc.)
+    status_code = Column(Integer)  # HTTP status code jeśli dotyczy
+    endpoint = Column(Text)  # Endpoint gdzie wystąpił błąd
+    method = Column(String(10))  # HTTP method (GET, POST, etc.)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)  # Użytkownik jeśli był zalogowany
+    ip_address = Column(String(45))  # IPv4 lub IPv6
+    user_agent = Column(Text)
+    resolved = Column(Boolean, default=False)  # Czy błąd został rozwiązany
+    resolved_at = Column(DateTime, nullable=True)
+    resolved_by = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)  # Admin który rozwiązał
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship('User', foreign_keys=[user_id])
+    resolver = relationship('User', foreign_keys=[resolved_by])
+
+
 class Follow(Base):
     __tablename__ = 'follows'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -173,6 +218,38 @@ class Follow(Base):
     investor = relationship('User', foreign_keys=[
                             investor_id], back_populates='follows')
     entrepreneur = relationship('User', foreign_keys=[entrepreneur_id])
+
+
+class CampaignImage(Base):
+    __tablename__ = 'campaign_images'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey(
+        'campaigns.id', ondelete='CASCADE'), nullable=False)
+    image_url = Column(Text, nullable=False)  # URL do zdjęcia (może być lokalny lub zewnętrzny)
+    order_index = Column(Integer, default=0)  # Kolejność wyświetlania
+    alt_text = Column(Text)  # Tekst alternatywny dla dostępności
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    campaign = relationship('Campaign', back_populates='images')
+
+
+class CampaignRewardTier(Base):
+    __tablename__ = 'campaign_reward_tiers'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey(
+        'campaigns.id', ondelete='CASCADE'), nullable=False)
+    title = Column(Text, nullable=False)  # Nazwa widełki (np. "Wsparcie podstawowe")
+    description = Column(Text, nullable=False)  # Opis co inwestor otrzyma
+    min_percentage = Column(Numeric(5, 2), nullable=False)  # Minimalny % celu (np. 0.5 = 0.5%)
+    max_percentage = Column(Numeric(5, 2), nullable=True)  # Maksymalny % celu (NULL = bez limitu)
+    min_amount = Column(Numeric(12, 2), nullable=True)  # Minimalna kwota w PLN (opcjonalne)
+    max_amount = Column(Numeric(12, 2), nullable=True)  # Maksymalna kwota w PLN (opcjonalne)
+    estimated_delivery_date = Column(DateTime, nullable=True)  # Szacowana data dostawy
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    campaign = relationship('Campaign', back_populates='reward_tiers')
 
 
 class RegionCountry(Base):

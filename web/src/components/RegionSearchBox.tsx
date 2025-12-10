@@ -53,6 +53,7 @@ const RegionSearchBox: React.FC<RegionSearchBoxProps> = ({ onSelect, placeholder
                 }
                 setResults(data);
                 setShowDropdown(true);
+                console.log("regions searchbox results", data);
             })
             .catch(() => setResults([]))
             .finally(() => setLoading(false));
@@ -74,11 +75,11 @@ const RegionSearchBox: React.FC<RegionSearchBoxProps> = ({ onSelect, placeholder
     };
 
     return (
-        <div className="relative w-full max-w-md">
+        <div className="relative w-full">
             <div className="relative">
                 <input
                     type="text"
-                    className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 pr-8"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 outline-none bg-gray-50 focus:bg-white pr-10 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder={placeholder || 'Wyszukaj region, miasto...'}
                     value={selected ? selected.name : query}
                     onChange={e => {
@@ -92,7 +93,7 @@ const RegionSearchBox: React.FC<RegionSearchBoxProps> = ({ onSelect, placeholder
                 {selected && (
                     <button
                         type="button"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 min-w-0 flex items-center justify-center text-gray-400 hover:text-red-500 text-lg font-bold focus:outline-none bg-transparent p-0"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-gray-400 hover:text-red-500 text-xl font-bold focus:outline-none bg-transparent p-0 rounded-full hover:bg-red-50 transition-colors"
                         onClick={handleClear}
                         aria-label="Wyczyść wybór"
                         tabIndex={0}
@@ -100,23 +101,33 @@ const RegionSearchBox: React.FC<RegionSearchBoxProps> = ({ onSelect, placeholder
                         ×
                     </button>
                 )}
-                {loading && <div className="absolute right-8 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />}
+                {loading && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <svg className="animate-spin h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                )}
             </div>
             {showDropdown && results.length > 0 && !selected && (
-                <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded shadow mt-1 max-h-60 overflow-y-auto">
+                <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
                     {results.map(region => (
                         <li
                             key={region.id}
-                            className="px-4 py-2 hover:bg-green-100 cursor-pointer"
+                            className="px-4 py-3 hover:bg-green-50 cursor-pointer transition-colors border-b border-gray-100 last:border-b-0"
                             onClick={() => handleSelect(region)}
                         >
-                            {region.name} <span className="text-xs text-gray-400">({region.type})</span>
+                            <span className="font-medium text-gray-900">{region.name}</span>
+                            <span className="text-xs text-gray-400 ml-2">({region.type})</span>
                         </li>
                     ))}
                 </ul>
             )}
-            {showDropdown && !loading && results.length === 0 && !selected && (
-                <div className="absolute z-10 w-full bg-white border border-gray-200 rounded shadow mt-1 px-4 py-2 text-gray-500 text-sm">Brak wyników</div>
+            {showDropdown && !loading && results.length === 0 && !selected && query.length >= 2 && (
+                <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 px-4 py-3 text-gray-500 text-sm">
+                    Brak wyników
+                </div>
             )}
         </div>
     );

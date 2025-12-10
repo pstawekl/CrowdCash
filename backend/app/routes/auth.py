@@ -2,13 +2,14 @@ import random
 import string
 from datetime import datetime, timezone
 
+from fastapi import APIRouter, Depends, Form, Header, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+
 from app import crud, models, schemas, utils
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.email import send_email
-from fastapi import APIRouter, Depends, Form, Header, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -132,8 +133,14 @@ async def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Sessi
     print("in login")
     if not db_user or not utils.verify_password(form_data.password, db_user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    # POZWÓL LOGOWAĆ SIĘ NIEZWERYFIKOWANYM UŻYTKOWNIKOM
-    # (frontend sam przekieruje do ekranu weryfikacji)
+    
+    # Sprawdź czy konto jest zweryfikowane
+    if not db_user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Account not verified. Please verify your account at {db_user.email}"
+        )
+    
     access_token = utils.create_access_token(data={"sub": db_user.email})
     return access_token
 
@@ -263,4 +270,5 @@ async def get_current_user_info(db: Session = Depends(get_db), current_user: mod
         "is_verified": user.is_verified
     }
 
+    return user_dict
     return user_dict

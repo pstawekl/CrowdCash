@@ -1,6 +1,8 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, FlatList, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import RequirePermission from '../components/RequirePermission';
 import API from '../utils/api';
 
@@ -61,28 +63,44 @@ export default function NotificationsScreen({ navigation }: any) {
 
     if (loading) {
         return (
-            <View style={styles.container}>
-                <ActivityIndicator style={{ marginVertical: 20 }} size="large" color="#4caf50" />
-            </View>
+            <LinearGradient
+                colors={['#f9fafb', '#ecfdf5', '#dcfce7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.container}
+            >
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#16a34a" />
+                    <Text style={styles.loadingText}>Ładowanie powiadomień...</Text>
+                </View>
+            </LinearGradient>
         );
     }
 
     return (
         <RequirePermission permission="view_notifications" navigation={navigation}>
-            <SafeAreaView style={styles.safeArea}>
-                <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
-                    <View style={styles.header}>
-                        <Text style={styles.title}>Powiadomienia</Text>
-                        {unreadCount > 0 && (
-                            <View style={styles.badge}>
-                                <Text style={styles.badgeText}>{unreadCount}</Text>
+            <LinearGradient
+                colors={['#f9fafb', '#ecfdf5', '#dcfce7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.container}
+            >
+                <SafeAreaView style={styles.safeArea}>
+                    {
+                        unreadCount > 0 && (
+                            <View style={styles.header}>
+                                <View style={styles.badge}>
+                                    <Text style={styles.badgeText}>{unreadCount}</Text>
+                                </View>
                             </View>
-                        )}
-                    </View>
+                        )
+                    }
 
                     {notifications.length === 0 ? (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>Brak nowych powiadomień</Text>
+                            <MaterialIcons name="notifications-none" size={64} color="#9ca3af" />
+                            <Text style={styles.emptyTitle}>Brak powiadomień</Text>
+                            <Text style={styles.emptyText}>Nie masz jeszcze żadnych powiadomień</Text>
                         </View>
                     ) : (
                         <FlatList
@@ -91,38 +109,54 @@ export default function NotificationsScreen({ navigation }: any) {
                             renderItem={({ item }) => (
                                 <TouchableOpacity
                                     style={[
-                                        styles.notificationItem,
-                                        item.read ? styles.readItem : styles.unreadItem
+                                        styles.notificationCard,
+                                        item.read ? styles.readCard : styles.unreadCard
                                     ]}
                                     onPress={() => !item.read && markAsRead(item.id)}
+                                    activeOpacity={0.7}
                                 >
+                                    {!item.read && <View style={styles.unreadIndicator} />}
                                     <View style={styles.notificationContent}>
-                                        <Text style={[
-                                            styles.notificationTitle,
-                                            item.read ? styles.readTitle : styles.unreadTitle
-                                        ]}>
-                                            {item.title}
-                                        </Text>
+                                        <View style={styles.notificationHeader}>
+                                            <Text style={[
+                                                styles.notificationTitle,
+                                                item.read ? styles.readTitle : styles.unreadTitle
+                                            ]}>
+                                                {item.title}
+                                            </Text>
+                                            {!item.read && (
+                                                <View style={styles.unreadDot} />
+                                            )}
+                                        </View>
                                         <Text style={[
                                             styles.notificationBody,
                                             item.read ? styles.readBody : styles.unreadBody
                                         ]}>
                                             {item.body}
                                         </Text>
-                                        <Text style={styles.notificationDate}>
-                                            {new Date(item.created_at).toLocaleDateString('pl-PL')}
-                                        </Text>
+                                        <View style={styles.notificationFooter}>
+                                            <MaterialIcons name="schedule" size={14} color="#9ca3af" />
+                                            <Text style={styles.notificationDate}>
+                                                {new Date(item.created_at).toLocaleDateString('pl-PL', {
+                                                    day: 'numeric',
+                                                    month: 'long',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </Text>
+                                        </View>
                                     </View>
-                                    {!item.read && <View style={styles.unreadIndicator} />}
                                 </TouchableOpacity>
                             )}
                             refreshing={loading}
                             onRefresh={fetchNotifications}
-                            scrollEnabled={false}
+                            contentContainerStyle={styles.listContent}
+                            showsVerticalScrollIndicator={false}
                         />
                     )}
-                </ScrollView>
-            </SafeAreaView>
+                </SafeAreaView>
+            </LinearGradient>
         </RequirePermission>
     );
 }
@@ -130,112 +164,153 @@ export default function NotificationsScreen({ navigation }: any) {
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
-    safeArea: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
     container: {
         flex: 1,
-        backgroundColor: '#fff',
     },
-    scrollView: {
+    safeArea: {
         flex: 1,
     },
-    content: {
-        padding: Math.min(20, screenWidth * 0.05),
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 12,
+    },
+    loadingText: {
+        fontSize: 16,
+        color: '#6b7280',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: Math.min(20, screenWidth * 0.05),
-        paddingBottom: Math.min(10, screenWidth * 0.025),
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
         borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
+        borderBottomColor: '#e5e7eb',
+    },
+    headerTitleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     title: {
-        fontSize: Math.min(24, screenWidth * 0.06),
-        fontWeight: 'bold',
-        color: '#333',
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#111827',
     },
     badge: {
-        backgroundColor: '#d32f2f',
-        borderRadius: Math.min(12, screenWidth * 0.03),
-        minWidth: Math.min(24, screenWidth * 0.06),
-        height: Math.min(24, screenWidth * 0.06),
+        backgroundColor: '#ef4444',
+        borderRadius: 12,
+        minWidth: 24,
+        height: 24,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: Math.min(8, screenWidth * 0.02),
+        paddingHorizontal: 8,
     },
     badgeText: {
         color: '#fff',
-        fontSize: Math.min(12, screenWidth * 0.03),
-        fontWeight: 'bold',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    listContent: {
+        padding: 16,
+        paddingBottom: 100,
+    },
+    notificationCard: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
+        borderWidth: 1,
+        borderColor: '#f3f4f6',
+        position: 'relative',
+    },
+    readCard: {
+        opacity: 0.7,
+    },
+    unreadCard: {
+        borderLeftWidth: 4,
+        borderLeftColor: '#16a34a',
+        backgroundColor: '#f0fdf4',
+    },
+    unreadIndicator: {
+        position: 'absolute',
+        top: 20,
+        right: 20,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#16a34a',
+    },
+    notificationContent: {
+        flex: 1,
+    },
+    notificationHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    notificationTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        flex: 1,
+    },
+    readTitle: {
+        color: '#6b7280',
+    },
+    unreadTitle: {
+        color: '#111827',
+    },
+    unreadDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#16a34a',
+        marginLeft: 8,
+    },
+    notificationBody: {
+        fontSize: 14,
+        marginBottom: 12,
+        lineHeight: 20,
+    },
+    readBody: {
+        color: '#9ca3af',
+    },
+    unreadBody: {
+        color: '#4b5563',
+    },
+    notificationFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    notificationDate: {
+        fontSize: 12,
+        color: '#9ca3af',
     },
     emptyContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        padding: 32,
+        gap: 16,
+    },
+    emptyTitle: {
+        fontSize: 20,
+        fontWeight: '600',
+        color: '#111827',
     },
     emptyText: {
-        fontSize: Math.min(16, screenWidth * 0.04),
-        color: '#666',
+        fontSize: 14,
+        color: '#6b7280',
         textAlign: 'center',
-    },
-    notificationItem: {
-        flexDirection: 'row',
-        padding: Math.min(16, screenWidth * 0.04),
-        marginBottom: Math.min(12, screenWidth * 0.03),
-        borderRadius: Math.min(8, screenWidth * 0.02),
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 2,
-    },
-    readItem: {
-        backgroundColor: '#f9f9f9',
-    },
-    unreadItem: {
-        backgroundColor: '#e3f2fd',
-        borderLeftWidth: 4,
-        borderLeftColor: '#2196f3',
-    },
-    notificationContent: {
-        flex: 1,
-    },
-    notificationTitle: {
-        fontSize: Math.min(16, screenWidth * 0.04),
-        fontWeight: 'bold',
-        marginBottom: 4,
-    },
-    readTitle: {
-        color: '#666',
-    },
-    unreadTitle: {
-        color: '#333',
-    },
-    notificationBody: {
-        fontSize: Math.min(14, screenWidth * 0.035),
-        marginBottom: Math.min(8, screenWidth * 0.02),
-        lineHeight: Math.min(20, screenWidth * 0.05),
-    },
-    readBody: {
-        color: '#888',
-    },
-    unreadBody: {
-        color: '#555',
-    },
-    notificationDate: {
-        fontSize: Math.min(12, screenWidth * 0.03),
-        color: '#999',
-    },
-    unreadIndicator: {
-        width: Math.min(8, screenWidth * 0.02),
-        height: Math.min(8, screenWidth * 0.02),
-        borderRadius: Math.min(4, screenWidth * 0.01),
-        backgroundColor: '#2196f3',
-        marginLeft: Math.min(8, screenWidth * 0.02),
-        marginTop: 4,
     },
 });

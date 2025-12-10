@@ -6,6 +6,7 @@ import unicodedata
 import uuid
 
 import requests
+
 from app.core.database import SessionLocal
 from app.models import RegionCity
 
@@ -16,6 +17,30 @@ COLS = [
     'feature_class', 'feature_code', 'country_code', 'cc2', 'admin1_code', 'admin2_code',
     'admin3_code', 'admin4_code', 'population', 'elevation', 'dem', 'timezone', 'modification_date'
 ]
+
+KRAJ = 'PL'
+
+# Mapowanie kodów admin1_code z GeoNames na kody ISO używane w bazie
+GEONAMES_TO_ISO_ADMIN1 = {
+    '75': 'PL.06',  # Lubelskie
+    '80': 'PL.18',  # Podkarpackie
+    '85': 'PL.28',  # Warmińsko-Mazurskie
+    '78': 'PL.26',  # Świętokrzyskie
+    '84': 'PL.26',  # Świętokrzyskie (alternatywny kod)
+    '81': 'PL.20',  # Podlaskie
+    '77': 'PL.14',  # Mazowieckie
+    '76': 'PL.10',  # Łódzkie
+    '72': 'PL.02',  # Dolnośląskie
+    '74': 'PL.04',  # Kujawsko-Pomorskie
+    '73': 'PL.22',  # Pomorskie
+    '82': 'PL.24',  # Śląskie
+    '83': 'PL.30',  # Wielkopolskie
+    '86': 'PL.32',  # Zachodniopomorskie
+    '87': 'PL.08',  # Lubuskie
+    '88': 'PL.16',  # Opolskie
+    '79': 'PL.12',  # Małopolskie
+    '00': None,     # Nieznany kod - pomiń
+}
 
 try:
     import tkinter as tk
@@ -77,6 +102,18 @@ def main():
     existing_admin1_codes = set(
         row[0] for row in db.execute(text('SELECT admin1_code FROM region_states')).fetchall()
     )
+    
+    # Pobierz ID Polski z bazy
+    from app.models import RegionCountry
+    poland = db.query(RegionCountry).filter(
+        RegionCountry.country_code == KRAJ
+    ).first()
+    
+    if not poland:
+        print(f"Błąd: Kraj {KRAJ} nie został znaleziony w bazie! Najpierw uruchom seed_countries_states.py")
+        db.close()
+        return
+    
     # --- Import tylko miast ---
     with open(geonames_file, encoding='utf-8') as f:
         reader = csv.DictReader(f, fieldnames=COLS, delimiter=';')
@@ -133,17 +170,25 @@ def main():
         cc2 = row.get('cc2')
         if cc2 != '' and cc2 is not None:
             continue
+        
+        # Konwertuj kod GeoNames na kod ISO
+        geonames_admin1 = row['admin1_code']
+        iso_admin1_code = GEONAMES_TO_ISO_ADMIN1.get(geonames_admin1)
+        
+        if not iso_admin1_code:
+            continue  # pomijamy miasta z nieznanym kodem województwa
+        
         # Sprawdź czy admin1_code istnieje w województwach
-        if f'{KRAJ}.{row['admin1_code']}' not in existing_admin1_codes:
+        if iso_admin1_code not in existing_admin1_codes:
             continue  # pomijamy miasta bez powiązanego województwa
 
         state_id = db.execute(
             text("SELECT id FROM region_states WHERE admin1_code = :admin1_code"),
-            {"admin1_code": f"{KRAJ}.{row['admin1_code']}"}
+            {"admin1_code": iso_admin1_code}  # Użyj kodu ISO zamiast GeoNames
         ).scalar()
 
         if not state_id:
-            print(f"Brak województwa dla admin1_code: {row['admin1_code']}")
+            print(f"Brak województwa dla admin1_code: {iso_admin1_code} (GeoNames: {geonames_admin1})")
             continue
 
         city = RegionCity(
@@ -156,9 +201,9 @@ def main():
             longitude=row['longitude'],
             feature_class=row['feature_class'],
             feature_code=row['feature_code'],
-            country_id="7b49c97d-3473-4a90-a148-498dfdb197d4",
+            country_id=poland.id,  # Użyj dynamicznego ID zamiast zahardkodowanego
             state_id=state_id,
-            admin1_code=row['admin1_code'],
+            admin1_code=row['admin1_code'],  # Zostaw oryginalny kod GeoNames
             admin2_code=row['admin2_code'],
             admin3_code=row['admin3_code'],
             admin4_code=row['admin4_code'],
@@ -172,6 +217,7 @@ def main():
         city_count += 1
         if city_count % 1000 == 0:
             db.commit()
+            print(f"Zaimportowano {city_count} miast...")
     db.commit()
     print(f'Dodano miast: {city_count}')
     db.close()
@@ -184,4 +230,5 @@ def main():
 
 
 if __name__ == '__main__':
+    main()
     main()

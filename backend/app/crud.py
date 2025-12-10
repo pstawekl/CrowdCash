@@ -1,21 +1,39 @@
+import uuid
 from datetime import datetime
+from typing import Optional
+from uuid import UUID
 
-import passlib.context
-from app import models, schemas
-from app.schemas import AdminLogCreate
+import bcrypt
 from sqlalchemy.orm import Session
 
-# Inicjalizacja contextu do haszowania
-pwd_context = passlib.context.CryptContext(
-    schemes=["bcrypt"], deprecated="auto")
+from app import models, schemas
+from app.schemas import AdminLogCreate
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    """Hashuje hasło używając bcrypt."""
+    # Konwertuj hasło na bytes jeśli jest stringiem
+    if isinstance(password, str):
+        password = password.encode('utf-8')
+    
+    # Generuj salt i hashuj hasło
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password, salt)
+    
+    # Zwróć jako string
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    """Weryfikuje hasło przeciwko hashowi."""
+    # Konwertuj na bytes jeśli są stringami
+    if isinstance(plain_password, str):
+        plain_password = plain_password.encode('utf-8')
+    if isinstance(hashed_password, str):
+        hashed_password = hashed_password.encode('utf-8')
+    
+    # Zweryfikuj hasło
+    return bcrypt.checkpw(plain_password, hashed_password)
 
 
 # Tworzenie nowego użytkownika
@@ -77,3 +95,71 @@ def add_admin_log(db: Session, log: schemas.AdminLogCreate):
     db.commit()
     db.refresh(db_log)
     return db_log
+
+
+# Error Log CRUD operations
+def create_error_log(db: Session, error_log: schemas.ErrorLogCreate):
+    """Tworzy nowy wpis w logu błędów."""
+    db_error_log = models.ErrorLog(**error_log.dict())
+    db.add(db_error_log)
+    db.commit()
+    db.refresh(db_error_log)
+    return db_error_log
+
+
+def get_error_logs(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    resolved: Optional[bool] = None,
+    error_type: Optional[str] = None
+):
+    """Pobiera listę błędów z opcjonalnymi filtrami."""
+    query = db.query(models.ErrorLog)
+    
+    if resolved is not None:
+        query = query.filter(models.ErrorLog.resolved == resolved)
+    
+    if error_type:
+        query = query.filter(models.ErrorLog.error_type == error_type)
+    
+    return query.order_by(models.ErrorLog.created_at.desc()).offset(skip).limit(limit).all()
+
+
+def get_error_log_by_id(db: Session, error_id: uuid.UUID):
+    """Pobiera pojedynczy błąd po ID."""
+    return db.query(models.ErrorLog).filter(models.ErrorLog.id == error_id).first()
+
+
+def update_error_log(
+    db: Session,
+    error_id: uuid.UUID,
+    error_update: schemas.ErrorLogUpdate
+):
+    """Aktualizuje status błędu (np. oznacza jako rozwiązany)."""
+    db_error_log = db.query(models.ErrorLog).filter(models.ErrorLog.id == error_id).first()
+    if not db_error_log:
+        return None
+    
+    update_data = error_update.dict(exclude_unset=True)
+    
+    if update_data.get('resolved') and not db_error_log.resolved:
+        update_data['resolved_at'] = datetime.utcnow()
+    
+    for key, value in update_data.items():
+        setattr(db_error_log, key, value)
+    
+    db.commit()
+    db.refresh(db_error_log)
+    return db_error_log
+
+
+def delete_error_log(db: Session, error_id: uuid.UUID):
+    """Usuwa wpis błędu z logów."""
+    db_error_log = db.query(models.ErrorLog).filter(models.ErrorLog.id == error_id).first()
+    if not db_error_log:
+        return None
+    
+    db.delete(db_error_log)
+    db.commit()
+    return db_error_log

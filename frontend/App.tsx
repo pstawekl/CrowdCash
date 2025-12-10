@@ -1,9 +1,13 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { ThemeProvider } from './contexts/ThemeContext';
 import AppNavigator from './navigation/AppNavigator';
 
 export default function App() {
-  return <AppNavigator />;
+  return (
+    <ThemeProvider>
+      <AppNavigator />
+    </ThemeProvider>
+  );
 }
 
 const styles = StyleSheet.create({

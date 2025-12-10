@@ -1,18 +1,16 @@
 from datetime import datetime, timedelta
 
-from app import crud
-from app.core.config import settings
-from app.core.database import get_db
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+from app import crud
+from app.core.config import settings
+from app.core.database import get_db
 
-# Inicjalizacja contextu do haszowania
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 # Sekret JWT - powinien być przechowywany w zmiennych środowiskowych
 SECRET_KEY = settings.secret_key
@@ -20,16 +18,30 @@ ALGORITHM = settings.algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
 # Funkcja do haszowania haseł
-
-
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    """Hashuje hasło używając bcrypt."""
+    # Konwertuj hasło na bytes jeśli jest stringiem
+    if isinstance(password, str):
+        password = password.encode('utf-8')
+    
+    # Generuj salt i hashuj hasło
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password, salt)
+    
+    # Zwróć jako string
+    return hashed.decode('utf-8')
 
 # Funkcja do weryfikacji hasła
-
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    """Weryfikuje hasło przeciwko hashowi."""
+    # Konwertuj na bytes jeśli są stringami
+    if isinstance(plain_password, str):
+        plain_password = plain_password.encode('utf-8')
+    if isinstance(hashed_password, str):
+        hashed_password = hashed_password.encode('utf-8')
+    
+    # Zweryfikuj hasło
+    return bcrypt.checkpw(plain_password, hashed_password)
 
 # Funkcja do generowania tokenu
 
@@ -107,4 +119,5 @@ def refresh_token(current_token: str = Depends(oauth2_scheme), db: Session = Dep
 
         return create_access_token(data={"sub": username})
     except JWTError:
+        raise credentials_exception
         raise credentials_exception

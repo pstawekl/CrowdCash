@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import RequirePermission from '../components/RequirePermission';
 import Spinner from '../components/Spinner';
 import API from '../utils/api';
+import { AxiosError } from 'axios';
 
 interface Transaction {
     id: string;
@@ -18,6 +19,7 @@ export default function Transactions() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [loadingPayment, setLoadingPayment] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchTransactions = async () => {
@@ -25,43 +27,40 @@ export default function Transactions() {
             setError('');
             try {
                 const token = localStorage.getItem('authToken');
-                if (!token) throw new Error('Brak tokena');
-
-                // Najpierw spróbuj endpoint /transactions/
-                let res;
-                try {
-                    res = await API.get('/transactions/', {
-                        headers: { Authorization: `Bearer ${token}` },
-                        maxRedirects: 0,
-                        validateStatus: (status) => status < 400
-                    });
-
-                    if (res.status === 307) {
-                        // Jeśli 307 redirect, ponów żądanie
-                        res = await API.get('/transactions/', {
-                            headers: { Authorization: `Bearer ${token}` },
-                        });
-                    }
-                } catch (redirectError) {
-                    // Jeśli błąd związany z redirect, spróbuj alternatywnego endpointu
-                    console.log('307 redirect, ponawiam na /transactions/');
-                    res = await API.get('/transactions/', {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
+                if (!token) {
+                    setError('Brak autoryzacji. Zaloguj się ponownie.');
+                    setLoading(false);
+                    return;
                 }
 
-                // Konwertuj UUID na stringi
-                const transactionsData = Array.isArray(res.data) ? res.data.map(transaction => ({
+                // Uproszczone pobieranie transakcji - bez obsługi redirectów
+                const res = await API.get('/transactions/', {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+
+                // Konwertuj UUID na stringi i waliduj dane
+                if (!Array.isArray(res.data)) {
+                    console.error('Odpowiedź API nie jest tablicą:', res.data);
+                    setTransactions([]);
+                    return;
+                }
+
+                const transactionsData = res.data.map(transaction => ({
                     ...transaction,
-                    id: String(transaction.id),
-                    investment_id: transaction.investment_id ? String(transaction.investment_id) : null
-                })) : [];
+                    id: String(transaction.id || ''),
+                    investment_id: transaction.investment_id ? String(transaction.investment_id) : null,
+                    amount: Number(transaction.amount) || 0,
+                    fee: Number(transaction.fee) || 0,
+                    type: transaction.type || 'unknown',
+                    status: transaction.status || 'pending',
+                    created_at: transaction.created_at || new Date().toISOString(),
+                }));
 
                 setTransactions(transactionsData);
-                console.log('Odebrane transakcje:', transactionsData);
             } catch (e: any) {
                 console.error('Błąd pobierania transakcji:', e);
-                setError(e?.response?.data?.detail || 'Nie udało się pobrać transakcji');
+                const errorMessage = e?.response?.data?.detail || e?.message || 'Nie udało się pobrać transakcji';
+                setError(errorMessage);
             } finally {
                 setLoading(false);
             }
@@ -76,6 +75,37 @@ export default function Transactions() {
             case 'refund': return 'Zwrot';
             case 'payout': return 'Wypłata';
             default: return type;
+        }
+    };
+
+    const handleResumePayment = async (transactionId: string) => {
+        setLoadingPayment(transactionId);
+        setError('');
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                setError('Brak autoryzacji. Zaloguj się ponownie.');
+                setLoadingPayment(null);
+                return;
+            }
+
+            const res = await API.get(`/payments/${transactionId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (res.data?.payment_link) {
+                // Przekieruj użytkownika do Stripe checkout
+                window.location.href = res.data.payment_link;
+            } else {
+                setError('Nie udało się pobrać linku do płatności.');
+            }
+        } catch (e) {
+            const axiosError = e as AxiosError<{ detail?: string }>;
+            console.error('Błąd pobierania linku do płatności:', axiosError);
+            const errorMessage = axiosError?.response?.data?.detail || axiosError?.message || 'Nie udało się pobrać linku do płatności';
+            setError(errorMessage);
+        } finally {
+            setLoadingPayment(null);
         }
     };
 
@@ -124,6 +154,27 @@ export default function Transactions() {
                                         </div>
                                     </div>
                                 </div>
+                                {transaction.status === 'pending' && (
+                                    <div className="ml-4">
+                                        <button
+                                            onClick={() => handleResumePayment(transaction.id)}
+                                            disabled={loadingPayment === transaction.id}
+                                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+                                        >
+                                            {loadingPayment === transaction.id ? (
+                                                <span className="flex items-center gap-2">
+                                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    Ładowanie...
+                                                </span>
+                                            ) : (
+                                                'Dokończ płatność'
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -158,14 +209,20 @@ export default function Transactions() {
 
                 {/* Przyciski szybkiego dostępu */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-                    <div className="bg-white rounded-lg shadow p-4 text-center">
-                        <div className="text-green-600 font-semibold">Inwestycje</div>
+                    <Link
+                        to="/investor-dashboard"
+                        className="bg-white rounded-lg shadow p-4 text-center hover:bg-green-50 transition-colors"
+                    >
+                        <div className="text-green-600 font-semibold">Moje inwestycje</div>
                         <div className="text-sm text-gray-500">Zobacz swoje inwestycje</div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow p-4 text-center">
+                    </Link>
+                    <Link
+                        to="/feed"
+                        className="bg-white rounded-lg shadow p-4 text-center hover:bg-green-50 transition-colors"
+                    >
                         <div className="text-green-600 font-semibold">Kampanie</div>
                         <div className="text-sm text-gray-500">Przeglądaj projekty</div>
-                    </div>
+                    </Link>
                     <Link
                         to="/investor-dashboard"
                         className="bg-white rounded-lg shadow p-4 text-center hover:bg-green-50 transition-colors"

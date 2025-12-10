@@ -22,6 +22,7 @@ roles_permissions = {
         "view_investments",
         "view_transactions",
         "view_profile",
+        "view_notifications",
         "logout"
     ],
     "entrepreneur": [
@@ -29,6 +30,7 @@ roles_permissions = {
         "view_investments",
         "view_transactions",
         "view_profile",
+        "view_notifications",
         "logout"
     ],
     "admin": [
@@ -72,9 +74,29 @@ def seed_permissions():
 
                 print(f"Dodano role: {role_name} z permissions: {role_permissions}")
             else:
-                print(f"Role {role_name} już istnieje")
+                # Aktualizuj uprawnienia dla istniejącej roli
+                role = existing_role
+                # Wyczyść istniejące uprawnienia
+                role.permissions.clear()
+                db.flush()
+                
+                # Dodaj nowe permissions do roli
+                for perm_name in role_permissions:
+                    perm = db.query(Permission).filter(Permission.name == perm_name).first()
+                    if perm:
+                        role.permissions.append(perm)
+                
+                print(f"Zaktualizowano role: {role_name} z permissions: {role_permissions}")
 
         db.commit()
+        
+        # Wyświetl wszystkie role i ich uprawnienia dla debugowania
+        print("\n=== Podsumowanie ról i uprawnień ===")
+        all_roles = db.query(Role).all()
+        for role in all_roles:
+            perm_names = [p.name for p in role.permissions]
+            print(f"Role ID: {role.id}, Name: {role.name}, Permissions: {perm_names}")
+        
         print("Seed permissions completed successfully!")
 
     except Exception as e:
