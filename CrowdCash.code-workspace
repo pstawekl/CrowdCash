@@ -63,7 +63,10 @@
 		},
 		"[json]": {
 			"editor.defaultFormatter": "esbenp.prettier-vscode"
-		}
+		},
+		"cursorpyright.analysis.extraPaths": [
+			"${workspaceFolder:Backend}/app"
+		]
 	},
 	"extensions": {
 		"recommendations": [

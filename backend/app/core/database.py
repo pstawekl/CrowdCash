@@ -1,6 +1,8 @@
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sshtunnel import SSHTunnelForwarder
+import atexit
 
 from app.core.config import settings
 
@@ -10,6 +12,9 @@ try:
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     PSYCOPG2_AVAILABLE = False
+
+# Global SSH tunnel instance
+ssh_tunnel = None
 
 
 def _ensure_utf8(value):
@@ -57,8 +62,48 @@ def _ensure_utf8(value):
             return str_value.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
 
 
+def setup_ssh_tunnel():
+    """
+    Konfiguruje SSH tunnel, jeśli zmienne środowiskowe są ustawione.
+    Zwraca local_bind_port jeśli tunnel jest aktywny, w przeciwnym razie None.
+    """
+    global ssh_tunnel
+    
+    if not settings.ssh_tunnel_host:
+        # Brak konfiguracji SSH tunnel
+        return None
+    
+    try:
+        ssh_tunnel = SSHTunnelForwarder(
+            (settings.ssh_tunnel_host, settings.ssh_tunnel_port or 22),
+            ssh_username=settings.ssh_tunnel_username,
+            ssh_password=settings.ssh_tunnel_password,
+            remote_bind_address=(settings.db_host or 'localhost', settings.db_port or 5432)
+        )
+        ssh_tunnel.start()
+        
+        # Rejestrujemy funkcję zamykającą tunnel przy wyjściu
+        atexit.register(lambda: ssh_tunnel.stop() if ssh_tunnel and ssh_tunnel.is_active else None)
+        
+        print(f"SSH Tunnel utworzony: localhost:{ssh_tunnel.local_bind_port} -> {settings.db_host}:{settings.db_port}")
+        return ssh_tunnel.local_bind_port
+    
+    except Exception as e:
+        print(f"Błąd podczas tworzenia SSH tunnel: {e}")
+        raise
+
+
 # Tworzymy engine z obsługą kodowania UTF-8
 db_url = settings.database_url
+
+# Sprawdzamy czy należy użyć SSH tunnel (tylko w środowisku production)
+local_port = None
+if settings.environment == "production" and settings.ssh_tunnel_host:
+    local_port = setup_ssh_tunnel()
+    if local_port:
+        # Modyfikujemy URL bazy danych, aby używał lokalnego portu z tunelu
+        url_obj = make_url(db_url)
+        db_url = f"postgresql://{url_obj.username}:{url_obj.password}@localhost:{local_port}/{url_obj.database}"
 
 # Konwersja do stringa UTF-8 jeśli potrzeba
 if isinstance(db_url, bytes):
@@ -148,3 +193,15 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# Funkcja do zatrzymania SSH tunnel (do użycia przy shutdown aplikacji)
+def close_ssh_tunnel():
+    """Zamyka SSH tunnel, jeśli jest aktywny."""
+    global ssh_tunnel
+    if ssh_tunnel and ssh_tunnel.is_active:
+        try:
+            ssh_tunnel.stop()
+            print("SSH Tunnel zamknięty.")
+        except Exception as e:
+            print(f"Błąd podczas zamykania SSH tunnel: {e}")

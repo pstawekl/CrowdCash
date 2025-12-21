@@ -21,6 +21,7 @@ class User(Base):
     email = Column(Text, unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
     role_id = Column(Integer, ForeignKey('roles.id'))
+    city_id = Column(UUID(as_uuid=True), ForeignKey('region_cities.id'), nullable=True)  # Lokalizacja użytkownika (dla przedsiębiorców)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime)
     verification_code = Column(Text, nullable=True)
@@ -41,6 +42,8 @@ class User(Base):
     follows = relationship(
         'Follow', foreign_keys='Follow.investor_id', back_populates='investor')
     role = relationship('Role', back_populates='users')
+    city = relationship('RegionCity', foreign_keys=[city_id])
+    company = relationship('Company', uselist=False, back_populates='user', cascade="all, delete-orphan")
 
 
 class Profile(Base):
@@ -67,7 +70,7 @@ class Category(Base):
     icon = Column(Text, nullable=True)  # Można później dodać ikony
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    campaigns = relationship('Campaign', back_populates='category_rel')
+    # campaigns = relationship('Campaign', back_populates='category_rel')
 
 
 class Campaign(Base):
@@ -78,18 +81,19 @@ class Campaign(Base):
         'users.id', ondelete='CASCADE'))
     title = Column(Text, nullable=False)
     description = Column(Text)
-    category_id = Column(UUID(as_uuid=True), ForeignKey('categories.id', ondelete='SET NULL'), nullable=True)
-    category = Column(Text)  # Zachowaj dla kompatybilności wstecznej podczas migracji
+    # category_id = Column(UUID(as_uuid=True), ForeignKey('categories.id', ondelete='SET NULL'), nullable=True)
+    category = Column(Text)  # Tymczasowo tylko tekstowa, póki nie zaktualizujemy bazy danych
     goal_amount = Column(Numeric(12, 2), nullable=False)
     current_amount = Column(Numeric(12, 2), default=0)
-    region = Column(Text)
+    region = Column(Text)  # Stare pole tekstowe - zachowane dla kompatybilności wstecznej
+    city_id = Column(UUID(as_uuid=True), ForeignKey('region_cities.id'), nullable=True)  # Nowa relacja z regionami
     deadline = Column(DateTime, nullable=False)
     status = Column(String, CheckConstraint(
         "status IN ('draft', 'active', 'successful', 'failed')"), default='draft')
     created_at = Column(DateTime, default=datetime.utcnow)
 
     entrepreneur = relationship('User', back_populates='campaigns')
-    category_rel = relationship('Category', back_populates='campaigns')
+    # category_rel = relationship('Category', back_populates='campaigns')
     investments = relationship('Investment', back_populates='campaign',
                                cascade="all, delete-orphan")
     payouts = relationship('Payout', back_populates='campaign',
@@ -98,6 +102,7 @@ class Campaign(Base):
                           cascade="all, delete-orphan", order_by='CampaignImage.order_index')
     reward_tiers = relationship('CampaignRewardTier', back_populates='campaign',
                                  cascade="all, delete-orphan", order_by='CampaignRewardTier.min_percentage')
+    city = relationship('RegionCity', foreign_keys=[city_id])
 
 
 class Transaction(Base):
@@ -310,6 +315,7 @@ class RegionCity(Base):
 class Company(Base):
     __tablename__ = 'companies'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), unique=True, nullable=False)  # Relacja z użytkownikiem
     nip = Column(String(20), unique=True, nullable=False)
     regon = Column(String(20), nullable=True)
     krs = Column(String(20), nullable=True)
@@ -323,6 +329,8 @@ class Company(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow,
                         onupdate=datetime.utcnow)
+    
+    user = relationship('User', back_populates='company')
 
 
 class Role(Base):

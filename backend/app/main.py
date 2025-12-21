@@ -16,6 +16,14 @@ from app.routes.user import router as user_router
 app = FastAPI()
 
 
+# Event handler dla zamykania aplikacji
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Zamyka SSH tunnel przy zamykaniu aplikacji."""
+    from app.core.database import close_ssh_tunnel
+    close_ssh_tunnel()
+
+
 # Middleware do logowania błędów
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

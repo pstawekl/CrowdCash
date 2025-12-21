@@ -19,11 +19,22 @@ class UserCreate(UserBase):
 class UserOut(UserBase):
     id: uuid.UUID
     role_id: int
+    city_id: Optional[uuid.UUID] = None
     created_at: datetime
     last_login: Optional[datetime] = None
     is_verified: bool
 
     model_config = {"from_attributes": True}
+
+
+class UserUpdate(BaseModel):
+    city_id: Optional[uuid.UUID] = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
 
 
 # --- PROFILE ---
@@ -70,10 +81,11 @@ class CampaignBase(BaseModel):
     category_id: Optional[uuid.UUID] = None
     category: Optional[str] = None  # Zachowaj dla kompatybilności wstecznej
     goal_amount: float
-    region: Optional[str] = None
+    region: Optional[str] = None  # Stare pole - zachowane dla kompatybilności
+    city_id: Optional[uuid.UUID] = None  # Nowe pole - relacja z regionami
     deadline: datetime
-    images: Optional[List['CampaignImageCreate']] = None
-    reward_tiers: Optional[List['CampaignRewardTierCreate']] = None
+    images: Optional[List["CampaignImageCreate"]] = None
+    reward_tiers: Optional[List["CampaignRewardTierCreate"]] = None
 
 
 class CampaignCreate(CampaignBase):
@@ -87,8 +99,8 @@ class CampaignOut(CampaignBase):
     status: str
     created_at: datetime
     category_rel: Optional[CategoryOut] = None
-    images: Optional[List['CampaignImageOut']] = None
-    reward_tiers: Optional[List['CampaignRewardTierOut']] = None
+    images: Optional[List["CampaignImageOut"]] = None
+    reward_tiers: Optional[List["CampaignRewardTierOut"]] = None
 
     model_config = {"from_attributes": True}
 
@@ -137,9 +149,10 @@ class CampaignRewardTierOut(CampaignRewardTierBase):
 
 # --- INVESTMENT ---
 class InvestmentStatusEnum(Enum):
-    PENDING = 'pending'
-    COMPLETED = 'completed'
-    REFUNDED = 'refunded'
+    PENDING = "pending"
+    COMPLETED = "completed"
+    REFUNDED = "refunded"
+
 
 class InvestmentBase(BaseModel):
     amount: float
@@ -177,16 +190,18 @@ class TransactionStatusEnum(Enum):
     PENDING = "pending"
     ACCEPTED = "successful"
     FAILED = "failed"
-    CANCELLED = 'cancelled'
+    CANCELLED = "cancelled"
+
 
 class TransactionTypeEnum(Enum):
     DEPOSIT = "deposit"
     REFUND = "refund"
     PAYOUT = "payout"
 
+
 class AccountHolderType(Enum):
     INDIVIDUAL = "individual"
-    COMPANY = 'company'
+    COMPANY = "company"
 
 
 class TransactionCreate(BaseModel):
@@ -197,6 +212,7 @@ class TransactionCreate(BaseModel):
     status: Optional[str] = TransactionStatusEnum.PENDING
     type: Optional[str] = TransactionTypeEnum.DEPOSIT
 
+
 class TransactionOut(TransactionCreate):
     id: str
     created_at: datetime
@@ -204,14 +220,17 @@ class TransactionOut(TransactionCreate):
 
     model_config = {"from_attributes": True}
 
+
 class TransactionDetailed(TransactionCreate):
     id: str
     created_at: datetime
     stripe_transaction_id: Optional[str] = None
     fee: float
 
+
 class TransactionList(BaseModel):
     """Schemat dla listy transakcji - bez investment_id (relacja jest odwrotna)"""
+
     id: str
     currency: str
     amount: float
@@ -225,8 +244,10 @@ class TransactionList(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 class TransactionPaymentUrl(BaseModel):
-    payment_link: str   
+    payment_link: str
+
 
 class PayoutTransactionCreate(BaseModel):
     amount: float
@@ -234,7 +255,8 @@ class PayoutTransactionCreate(BaseModel):
     currency: str
     payout_description: str
     status: Optional[str] = TransactionStatusEnum.PENDING
-    type:str = TransactionTypeEnum.PAYOUT
+    type: str = TransactionTypeEnum.PAYOUT
+
 
 class PayoutTransactionOut(PayoutTransactionCreate):
     id: str
@@ -260,7 +282,6 @@ class PayoutOut(PayoutBase):
     status: str
 
     model_config = {"from_attributes": True}
-
 
 
 # --- NOTIFICATION ---
@@ -382,7 +403,7 @@ class RegionCity(BaseModel):
 class EntrepreneurRegister(BaseModel):
     email: EmailStr
     password: str
-    role: str = 'entrepreneur'
+    role: str = "entrepreneur"
     company_name: str
     nip: str
     city_id: uuid.UUID
@@ -413,5 +434,64 @@ class RoleOut(BaseModel):
     id: int
     name: str
     permissions: List[PermissionOut]
+
+    model_config = {"from_attributes": True}
+
+
+# --- COMPANY ---
+class CompanyBase(BaseModel):
+    nip: str
+    regon: Optional[str] = None
+    krs: Optional[str] = None
+    company_name: str
+    street: Optional[str] = None
+    building_number: Optional[str] = None
+    apartment_number: Optional[str] = None
+    postal_code: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+
+
+class CompanyCreate(CompanyBase):
+    pass
+
+
+class CompanyUpdate(BaseModel):
+    nip: Optional[str] = None
+    regon: Optional[str] = None
+    krs: Optional[str] = None
+    company_name: Optional[str] = None
+    street: Optional[str] = None
+    building_number: Optional[str] = None
+    apartment_number: Optional[str] = None
+    postal_code: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+
+
+class CompanyOut(CompanyBase):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# --- USER SETTINGS ---
+class UserSettingsOut(BaseModel):
+    """Pełne informacje o użytkowniku dla ekranu Ustawień"""
+
+    id: uuid.UUID
+    email: EmailStr
+    role_id: int
+    role_name: str
+    city_id: Optional[uuid.UUID] = None
+    created_at: datetime
+    last_login: Optional[datetime] = None
+    is_verified: bool
+    profile: Optional[ProfileOut] = None
+    company: Optional[CompanyOut] = None
+    city: Optional[RegionCity] = None
 
     model_config = {"from_attributes": True}

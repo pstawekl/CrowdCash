@@ -50,16 +50,33 @@ async def register_user(
         if existing_user:
             raise HTTPException(
                 status_code=400, detail="Email already registered")
+        
+        # Sprawdź czy miasto istnieje
+        city = db.query(models.RegionCity).filter(models.RegionCity.id == city_id).first()
+        if not city:
+            raise HTTPException(
+                status_code=404, detail="Miasto nie zostało znalezione")
+        
         verification_code = generate_verification_code()
-        # Tworzenie użytkownika
+        
+        # Tworzenie użytkownika z city_id
         new_user = crud.create_user(
-            db, user=schemas.UserCreate(email=email, password=password, role='entrepreneur'), verification_code=verification_code)
-        # Tworzenie firmy (Company)
+            db, user=schemas.UserCreate(email=email, password=password, role='entrepreneur'), 
+            verification_code=verification_code
+        )
+        
+        # Ustaw city_id dla użytkownika
+        new_user.city_id = city_id
+        db.commit()
+        db.refresh(new_user)
+        
+        # Tworzenie firmy (Company) z powiązaniem do użytkownika
         company = models.Company(
+            user_id=new_user.id,
             nip=nip,
             company_name=company_name,
-            city=city_id,
-            country=None,
+            city=city.name,  # Zapisz nazwę miasta jako tekst
+            country=city.country.name if city.country else None,
             street=street,
             building_number=building_number,
             apartment_number=apartment_number,
@@ -68,6 +85,7 @@ async def register_user(
         db.add(company)
         db.commit()
         db.refresh(company)
+        
         try:
             send_verification_email(new_user.email, verification_code)
         except Exception as e:
@@ -141,8 +159,14 @@ async def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Sessi
             detail=f"Account not verified. Please verify your account at {db_user.email}"
         )
     
-    access_token = utils.create_access_token(data={"sub": db_user.email})
-    return access_token
+    access_token = utils.create_access_token(data={"sub": db_user.email, "role_id": db_user.role_id})
+    
+    # Zwróć token wraz z role_id
+    return {
+        "access_token": access_token.get("access_token"),
+        "token_type": access_token.get("token_type", "bearer"),
+        "role_id": db_user.role_id
+    }
 
 
 @router.post("/delete-user")
@@ -156,6 +180,74 @@ async def delete_user(email: str, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "User deleted successfully"}
+
+
+@router.delete("/me")
+async def delete_my_account(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """
+    Usuwa konto aktualnie zalogowanego użytkownika.
+    Usuwa wszystkie powiązane dane (cascade).
+    """
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Zapisz email do logów przed usunięciem (opcjonalnie)
+    user_email = user.email
+    
+    # Usuń użytkownika (cascade usuwa powiązane dane)
+    db.delete(user)
+    db.commit()
+    
+    return {"message": f"Konto {user_email} zostało pomyślnie usunięte"}
+
+
+@router.put("/change-password")
+async def change_password(
+    password_data: schemas.PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """
+    Zmienia hasło aktualnie zalogowanego użytkownika.
+    """
+    # Sprawdź czy nowe hasło i potwierdzenie są takie same
+    if password_data.new_password != password_data.confirm_password:
+        raise HTTPException(
+            status_code=400,
+            detail="Nowe hasło i jego potwierdzenie nie są identyczne"
+        )
+    
+    # Sprawdź czy nowe hasło jest różne od starego
+    if password_data.current_password == password_data.new_password:
+        raise HTTPException(
+            status_code=400,
+            detail="Nowe hasło musi być różne od obecnego hasła"
+        )
+    
+    # Sprawdź czy obecne hasło jest poprawne
+    if not utils.verify_password(password_data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=400,
+            detail="Nieprawidłowe obecne hasło"
+        )
+    
+    # Walidacja siły nowego hasła
+    if len(password_data.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Nowe hasło musi mieć co najmniej 8 znaków"
+        )
+    
+    # Zmień hasło
+    current_user.password_hash = utils.get_password_hash(password_data.new_password)
+    db.commit()
+    
+    return {"message": "Hasło zostało pomyślnie zmienione"}
 
 
 @router.post("/refresh")
@@ -265,10 +357,120 @@ async def get_current_user_info(db: Session = Depends(get_db), current_user: mod
         "id": str(user.id),
         "email": user.email,
         "role_id": user.role_id,
+        "city_id": str(user.city_id) if user.city_id else None,
         "created_at": user.created_at,
         "last_login": user.last_login,
         "is_verified": user.is_verified
     }
 
     return user_dict
-    return user_dict
+
+
+@router.get("/settings", response_model=schemas.UserSettingsOut)
+async def get_user_settings(db: Session = Depends(get_db), current_user: models.User = Depends(utils.get_current_user)):
+    """
+    Zwraca pełne informacje o użytkowniku dla ekranu Ustawień.
+    Zawiera dane użytkownika, profil, dane firmy (dla przedsiębiorców) i informacje o regionie.
+    """
+    # Pobierz pełne dane użytkownika z bazy danych
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Pobierz profil użytkownika
+    profile = db.query(models.Profile).filter(models.Profile.user_id == user.id).first()
+    
+    # Pobierz dane firmy (jeśli użytkownik jest przedsiębiorcą)
+    company = None
+    if user.role and user.role.name == 'entrepreneur':
+        company = db.query(models.Company).filter(models.Company.user_id == user.id).first()
+    
+    # Pobierz informacje o mieście
+    city = None
+    if user.city_id:
+        city = db.query(models.RegionCity).filter(models.RegionCity.id == user.city_id).first()
+    
+    # Przygotuj odpowiedź
+    settings_data = {
+        "id": user.id,
+        "email": user.email,
+        "role_id": user.role_id,
+        "role_name": user.role.name if user.role else "unknown",
+        "city_id": user.city_id,
+        "created_at": user.created_at,
+        "last_login": user.last_login,
+        "is_verified": user.is_verified,
+        "profile": profile,
+        "company": company,
+        "city": city
+    }
+    
+    return settings_data
+
+
+@router.put("/settings/user", response_model=schemas.UserOut)
+async def update_user_settings(
+    user_update: schemas.UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """
+    Aktualizuje dane użytkownika (city_id).
+    """
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Sprawdź czy miasto istnieje
+    if user_update.city_id:
+        city = db.query(models.RegionCity).filter(models.RegionCity.id == user_update.city_id).first()
+        if not city:
+            raise HTTPException(status_code=404, detail="Miasto nie zostało znalezione")
+    
+    # Aktualizuj dane
+    for field, value in user_update.dict(exclude_unset=True).items():
+        setattr(user, field, value)
+    
+    db.commit()
+    db.refresh(user)
+    
+    return user
+
+
+@router.put("/settings/company", response_model=schemas.CompanyOut)
+async def update_company_settings(
+    company_update: schemas.CompanyUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """
+    Aktualizuje dane firmy przedsiębiorcy.
+    Tylko dla użytkowników z rolą 'entrepreneur'.
+    """
+    # Sprawdź czy użytkownik jest przedsiębiorcą
+    if not current_user.role or current_user.role.name != 'entrepreneur':
+        raise HTTPException(
+            status_code=403, 
+            detail="Tylko przedsiębiorcy mogą aktualizować dane firmy"
+        )
+    
+    # Pobierz firmę użytkownika
+    company = db.query(models.Company).filter(models.Company.user_id == current_user.id).first()
+    
+    if not company:
+        raise HTTPException(status_code=404, detail="Firma nie została znaleziona")
+    
+    # Aktualizuj dane firmy
+    for field, value in company_update.dict(exclude_unset=True).items():
+        if value is not None:  # Aktualizuj tylko pola które są podane
+            setattr(company, field, value)
+    
+    # Automatycznie aktualizuj updated_at
+    company.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(company)
+    
+    return company

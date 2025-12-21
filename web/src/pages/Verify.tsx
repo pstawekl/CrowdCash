@@ -12,9 +12,11 @@ export default function Verify() {
     const [resendError, setResendError] = useState('');
     const [resendSuccess, setResendSuccess] = useState(false);
     const [cooldown, setCooldown] = useState(0);
+    const [loginAttemptError, setLoginAttemptError] = useState('');
     const navigate = useNavigate();
     const search = useSearch({ from: '/verify' });
     const email = typeof search.email === 'string' ? search.email : '';
+    const fromLogin = typeof search.fromLogin === 'string' ? search.fromLogin === 'true' : false;
 
     // Odliczanie cooldownu
     useEffect(() => {
@@ -25,6 +27,13 @@ export default function Verify() {
             return () => clearTimeout(timer);
         }
     }, [cooldown]);
+
+    // Ustaw komunikat błędu jeśli przekierowano z logowania
+    useEffect(() => {
+        if (fromLogin) {
+            setLoginAttemptError('Nie możesz się zalogować do niezweryfikowanego konta. Zweryfikuj konto.');
+        }
+    }, [fromLogin]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -128,6 +137,13 @@ export default function Verify() {
                         {error && (
                             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                                 {error}
+                            </div>
+                        )}
+
+                        {/* Login Attempt Error */}
+                        {loginAttemptError && (
+                            <div className="bg-orange-50 border border-orange-200 text-orange-700 px-4 py-3 rounded-lg text-sm">
+                                {loginAttemptError}
                             </div>
                         )}
 

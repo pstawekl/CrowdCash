@@ -100,7 +100,7 @@ export default function LoginScreen({ navigation }: Props) {
                 
                 if (!is_verified) {
                     Alert.alert('Weryfikacja wymagana', 'Twoje konto nie zostało jeszcze zweryfikowane. Sprawdź email.');
-                    navigation.replace('Verify', { email: userEmail });
+                    navigation.replace('Verify', { email: userEmail, fromLogin: true });
                     return;
                 }
                 
@@ -126,7 +126,7 @@ export default function LoginScreen({ navigation }: Props) {
             if (error?.response?.status === 403) {
                 const errorDetail = error?.response?.data?.detail || '';
                 if (errorDetail.toLowerCase().includes('not verified') || errorDetail.toLowerCase().includes('verify')) {
-                    navigation.replace('Verify', { email });
+                    navigation.replace('Verify', { email, fromLogin: true });
                     return;
                 }
             }

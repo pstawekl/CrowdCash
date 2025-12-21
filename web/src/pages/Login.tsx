@@ -34,9 +34,9 @@ export default function Login() {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             });
             console.log('Response:', res.data);
-            const { access_token: token } = res.data;
+            const { access_token: token, role_id: roleFromLogin } = res.data;
             if (token) {
-                let parsedToken = token;
+            let parsedToken = token;
                 if (token.startsWith('{')) {
                     try {
                         const tokenObj = JSON.parse(token);
@@ -51,7 +51,8 @@ export default function Login() {
                     const meRes = await API.get('/auth/me', {
                         headers: { Authorization: `Bearer ${parsedToken}` },
                     });
-                    const userRole: number | null = meRes.data && meRes.data.role_id;
+                    // Użyj role_id z logowania lub z /me jako fallback
+                    const userRole: number | null = roleFromLogin || (meRes.data && meRes.data.role_id);
                     const isVerified: boolean = meRes.data && meRes.data.is_verified;
                     console.log('Pobrana rola użytkownika:', meRes.data);
 
@@ -61,7 +62,7 @@ export default function Login() {
                         localStorage.removeItem('authToken');
                         navigate({ 
                             to: '/verify',
-                            search: { email: email }
+                            search: { email: email, fromLogin: 'true' }
                         });
                         return;
                     }
@@ -130,7 +131,7 @@ export default function Login() {
                     // Przekieruj do strony weryfikacji
                     navigate({ 
                         to: '/verify',
-                        search: { email: email }
+                        search: { email: email, fromLogin: 'true' }
                     });
                     return;
                 }

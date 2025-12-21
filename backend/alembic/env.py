@@ -6,6 +6,7 @@ from logging.config import fileConfig
 from eralchemy import render_er
 from sqlalchemy import MetaData, create_engine, pool
 from sqlalchemy.engine.url import make_url
+from sshtunnel import SSHTunnelForwarder
 
 from alembic import context
 from app.core.config import settings
@@ -17,6 +18,9 @@ try:
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     PSYCOPG2_AVAILABLE = False
+
+# Global SSH tunnel instance dla Alembic
+alembic_ssh_tunnel = None
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -88,6 +92,45 @@ def run_migrations_offline() -> None:
     # generate_erd() - pomijamy w trybie offline, wymaga połączenia
 
 
+def setup_alembic_ssh_tunnel():
+    """
+    Konfiguruje SSH tunnel dla Alembic, jeśli zmienne środowiskowe są ustawione.
+    Zwraca local_bind_port jeśli tunnel jest aktywny, w przeciwnym razie None.
+    """
+    global alembic_ssh_tunnel
+    
+    if not settings.ssh_tunnel_host:
+        # Brak konfiguracji SSH tunnel
+        return None
+    
+    try:
+        alembic_ssh_tunnel = SSHTunnelForwarder(
+            (settings.ssh_tunnel_host, settings.ssh_tunnel_port or 22),
+            ssh_username=settings.ssh_tunnel_username,
+            ssh_password=settings.ssh_tunnel_password,
+            remote_bind_address=(settings.db_host or 'localhost', settings.db_port or 5432)
+        )
+        alembic_ssh_tunnel.start()
+        
+        print(f"SSH Tunnel utworzony: localhost:{alembic_ssh_tunnel.local_bind_port} -> {settings.db_host}:{settings.db_port}")
+        return alembic_ssh_tunnel.local_bind_port
+    
+    except Exception as e:
+        print(f"Błąd podczas tworzenia SSH tunnel: {e}")
+        raise
+
+
+def close_alembic_ssh_tunnel():
+    """Zamyka SSH tunnel Alembic, jeśli jest aktywny."""
+    global alembic_ssh_tunnel
+    if alembic_ssh_tunnel and alembic_ssh_tunnel.is_active:
+        try:
+            alembic_ssh_tunnel.stop()
+            print("SSH Tunnel zamknięty.")
+        except Exception as e:
+            print(f"Błąd podczas zamykania SSH tunnel: {e}")
+
+
 def _ensure_utf8(value):
     """Konwertuje wartość na string UTF-8, obsługując Windows-1250"""
     if value is None:
@@ -143,6 +186,15 @@ def run_migrations_online() -> None:
     # Używamy DATABASE_URL z settings (.env) zamiast alembic.ini
     # aby uniknąć problemów z kodowaniem
     db_url = settings.database_url
+    
+    # Sprawdzamy czy należy użyć SSH tunnel (tylko w środowisku production)
+    local_port = None
+    if settings.environment == "production" and settings.ssh_tunnel_host:
+        local_port = setup_alembic_ssh_tunnel()
+        if local_port:
+            # Modyfikujemy URL bazy danych, aby używał lokalnego portu z tunelu
+            url_obj = make_url(db_url)
+            db_url = f"postgresql://{url_obj.username}:{url_obj.password}@localhost:{local_port}/{url_obj.database}"
     
     # Konwersja do stringa UTF-8 jeśli potrzeba
     if isinstance(db_url, bytes):
@@ -221,15 +273,19 @@ def run_migrations_online() -> None:
             connect_args=connect_args,
         )
 
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+    try:
+        with connectable.connect() as connection:
+            context.configure(
+                connection=connection, target_metadata=target_metadata
+            )
 
-        with context.begin_transaction():
-            context.run_migrations()
+            with context.begin_transaction():
+                context.run_migrations()
 
-        generate_erd(connection)
+            generate_erd(connection)
+    finally:
+        # Zamykamy SSH tunnel po zakończeniu migracji
+        close_alembic_ssh_tunnel()
 
 if context.is_offline_mode():
     run_migrations_offline()

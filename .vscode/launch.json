@@ -44,7 +44,7 @@
             "type": "node-terminal",
             "request": "launch",
             "cwd": "${workspaceFolder}/frontend",
-            "command": "emulator -avd Medium_Phone_API_35"
+            "command": "emulator -avd Pixel_9_Pro"
         },
         {
             "name": "Run NGrok webhook",

@@ -13,6 +13,7 @@ import InvestmentsScreen from '../screens/InvestmentsScreen';
 import InvestorTransactionsScreen from '../screens/InvestorTransactionsScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import VerifyScreen from '../screens/VerifyScreen';
 import API from '../utils/api';
 import { getUserPermissions } from '../utils/permissions';
@@ -21,7 +22,7 @@ import BottomTabNavigator from './BottomTabNavigator';
 export type RootStackParamList = {
     Login: undefined;
     Register: undefined;
-    Verify: { email: string } | undefined;
+    Verify: { email: string; fromLogin?: boolean } | undefined;
     Investments: undefined;
     InvestmentDetails: { investmentId?: string; campaignId?: string };
     MainTabs: { screen?: string; params?: any } | undefined;
@@ -32,6 +33,7 @@ export type RootStackParamList = {
     InvestorHistory: undefined;
     InvestorTransactions: undefined;
     Notifications: undefined;
+    Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -356,6 +358,7 @@ export default function AppNavigator() {
                 currentRoute?.name === 'InvestmentDetails' ||
                 currentRoute?.name === 'Investments' ||
                 currentRoute?.name === 'InvestorTransactions' ||
+                currentRoute?.name === 'Settings' ||
                 currentRoute?.name === 'Login' ||
                 currentRoute?.name === 'Verify';
             
@@ -401,7 +404,8 @@ export default function AppNavigator() {
                 currentRoute?.name !== 'InvestorHistory' &&
                 currentRoute?.name !== 'InvestmentDetails' &&
                 currentRoute?.name !== 'Investments' &&
-                currentRoute?.name !== 'InvestorTransactions') {
+                currentRoute?.name !== 'InvestorTransactions' &&
+                currentRoute?.name !== 'Settings') {
                 navigationRef.current.reset({
                     index: 0,
                     routes: [{ name: 'MainTabs' }],
@@ -422,7 +426,8 @@ export default function AppNavigator() {
                                  currentRoute?.name === 'InvestorHistory' ||
                                  currentRoute?.name === 'InvestmentDetails' ||
                                  currentRoute?.name === 'Investments' ||
-                                 currentRoute?.name === 'InvestorTransactions';
+                                 currentRoute?.name === 'InvestorTransactions' ||
+                                 currentRoute?.name === 'Settings';
             
             if (!isInMainTabs && currentRoute?.name !== 'Login') {
                 console.log('Brak sesji, przekierowanie do logowania. Current route:', currentRoute?.name);
@@ -563,6 +568,7 @@ export default function AppNavigator() {
                     />
                     <Stack.Screen name="EntrepreneurProfile" component={EntrepreneurProfileScreen} options={{ title: 'Profil przedsiębiorcy', headerShown: true }} />
                     <Stack.Screen name="InvestorTransactions" component={InvestorTransactionsScreen} options={{ title: 'Historia transakcji', headerShown: true }} />
+                    <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ustawienia', headerShown: true }} />
                 </Stack.Navigator>
             </NavigationContainer>
             <SideMenu visible={menuVisible} onClose={() => setMenuVisible(false)}>

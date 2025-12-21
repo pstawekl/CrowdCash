@@ -1,5 +1,5 @@
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import API from '../utils/api';
@@ -13,7 +13,16 @@ export default function VerifyScreen({ navigation, route }: Props) {
     const [email, setEmail] = useState(route.params?.email || '');
     const [loading, setLoading] = useState(false);
     const [cooldown, setCooldown] = useState(0); // sekundy
+    const [loginAttemptError, setLoginAttemptError] = useState('');
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const fromLogin = route.params?.fromLogin || false;
+
+    // Ustaw komunikat błędu jeśli przekierowano z logowania
+    useEffect(() => {
+        if (fromLogin) {
+            setLoginAttemptError('Nie możesz się zalogować do niezweryfikowanego konta. Zweryfikuj konto.');
+        }
+    }, [fromLogin]);
 
     const handleVerify = async () => {
         setLoading(true);
@@ -60,6 +69,14 @@ export default function VerifyScreen({ navigation, route }: Props) {
         <View style={styles.container}>
             {/* <Text style={styles.title}>Weryfikacja konta</Text> */}
             <Text style={styles.label}>Podaj kod weryfikacyjny wysłany na email</Text>
+            
+            {/* Login Attempt Error */}
+            {loginAttemptError && (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{loginAttemptError}</Text>
+                </View>
+            )}
+            
             <TextInput
                 placeholder="Kod weryfikacyjny"
                 value={code}
@@ -91,4 +108,17 @@ const styles = StyleSheet.create({
     label: { fontSize: 16, marginBottom: 10, textAlign: 'center' },
     input: { borderWidth: 1, borderColor: '#ccc', marginBottom: 15, padding: 10, borderRadius: 6 },
     cooldown: { color: '#888', textAlign: 'center', marginBottom: 10 },
+    errorContainer: {
+        backgroundColor: '#fff3cd',
+        borderWidth: 1,
+        borderColor: '#ffc107',
+        borderRadius: 6,
+        padding: 12,
+        marginBottom: 15,
+    },
+    errorText: {
+        color: '#856404',
+        textAlign: 'center',
+        fontSize: 14,
+    },
 });

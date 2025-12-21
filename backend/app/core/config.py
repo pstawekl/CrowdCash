@@ -1,8 +1,12 @@
 from pydantic_settings import BaseSettings
 from pydantic import field_validator, ConfigDict
+from typing import Optional
 import json
 
 class Settings(BaseSettings):
+    # Environment configuration
+    environment: str = "development"  # development lub production
+    
     database_url: str
     secret_key: str
     algorithm: str
@@ -20,6 +24,19 @@ class Settings(BaseSettings):
     success_payment_url: str
     fail_payment_url: str
     supported_payment_methods: str
+    
+    # SSH Tunnel configuration (only for production)
+    ssh_tunnel_host: Optional[str] = None
+    ssh_tunnel_port: Optional[int] = 22
+    ssh_tunnel_username: Optional[str] = None
+    ssh_tunnel_password: Optional[str] = None
+    
+    # Database configuration (only for production)
+    db_host: Optional[str] = None
+    db_port: Optional[int] = 5432
+    db_name: Optional[str] = None
+    db_username: Optional[str] = None
+    db_password: Optional[str] = None
 
     model_config = ConfigDict(
         env_file=".env",

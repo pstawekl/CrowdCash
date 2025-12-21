@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 import Notifications from './pages/Notifications';
 import PaymentCancel from './pages/PaymentCancel';
+import PaymentFail from './pages/PaymentFail';
 import PaymentSuccess from './pages/PaymentSuccess';
 import Register from './pages/Register';
 import Settings from './pages/Settings';
@@ -32,6 +33,7 @@ const entrepreneurProfileRoute = createRoute({ path: '/profile/$entrepreneurId',
 const notificationsRoute = createRoute({ path: '/notifications', getParentRoute: () => rootRoute, component: Notifications });
 const transactionsRoute = createRoute({ path: '/transactions', getParentRoute: () => rootRoute, component: Transactions });
 const paymentSuccessRoute = createRoute({ path: '/payment/success', getParentRoute: () => rootRoute, component: PaymentSuccess });
+const paymentFailRoute = createRoute({ path: '/payment/fail', getParentRoute: () => rootRoute, component: PaymentFail });
 const paymentCancelRoute = createRoute({ path: '/payment/cancel', getParentRoute: () => rootRoute, component: PaymentCancel });
 const settingsRoute = createRoute({ path: '/settings', getParentRoute: () => rootRoute, component: Settings });
 const notFoundRoute = createRoute({ path: '*', getParentRoute: () => rootRoute, component: NotFound });
@@ -49,6 +51,7 @@ const routeTree = rootRoute.addChildren([
     notificationsRoute,
     transactionsRoute,
     paymentSuccessRoute,
+    paymentFailRoute,
     paymentCancelRoute,
     settingsRoute,
     notFoundRoute,

@@ -18,6 +18,7 @@ idna
 Jinja2
 Mako
 MarkupSafe
+paramiko<4.0.0
 passlib
 psycopg2-binary
 pyasn1
@@ -32,6 +33,7 @@ python-multipart
 rsa
 six
 sniffio
+sshtunnel
 stripe
 SQLAlchemy
 starlette

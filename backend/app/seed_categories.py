@@ -1,5 +1,5 @@
 """
-Skrypt do seedowania kategorii kampanii w bazie danych...
+Skrypt do seedowania kategorii kampanii w bazie danych.
 """
 import sys
 from pathlib import Path
@@ -7,9 +7,8 @@ from pathlib import Path
 # Dodaj katalog główny do ścieżki
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app import models
 from app.core.database import SessionLocal
-
+from app import models
 
 def seed_categories():
     db = SessionLocal()

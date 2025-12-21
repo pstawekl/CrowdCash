@@ -219,7 +219,7 @@ export default function MainLayout() {
                                 className="h-10 w-auto transition-transform duration-200 group-hover:rotate-3" 
                             />
                             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-emerald-600 hidden sm:block">
-                                CrowdCash
+                                rowdCash
                             </span>
                         </Link>
 

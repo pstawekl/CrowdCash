@@ -53,8 +53,7 @@ export default function AppMenuScreen({ navigation, route }: any) {
             icon: 'settings',
             label: 'Ustawienia',
             onPress: () => {
-                // TODO: Navigate to settings screen
-                console.log('Ustawienia');
+                navigation.navigate('Settings');
             },
         },
         {
