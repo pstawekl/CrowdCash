@@ -37,3 +37,5 @@ yarn-error.*
 
 # Python
 .venv/
+
+.env*
