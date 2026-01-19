@@ -39,3 +39,10 @@ yarn-error.*
 .venv/
 
 .env*
+
+# SSH keys (NIGDY nie commituj kluczy prywatnych!)
+*.ppk
+id_rsa
+id_rsa.pub
+*.pem
+*.key
