@@ -34,14 +34,34 @@ def hash_password(password: str) -> str:
 # Funkcja do weryfikacji hasła
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Weryfikuje hasło przeciwko hashowi."""
-    # Konwertuj na bytes jeśli są stringami
-    if isinstance(plain_password, str):
-        plain_password = plain_password.encode('utf-8')
-    if isinstance(hashed_password, str):
-        hashed_password = hashed_password.encode('utf-8')
-    
-    # Zweryfikuj hasło
-    return bcrypt.checkpw(plain_password, hashed_password)
+    try:
+        # Konwertuj hasło na bytes
+        if isinstance(plain_password, str):
+            plain_password_bytes = plain_password.encode('utf-8')
+        else:
+            plain_password_bytes = plain_password
+        
+        # Hash bcrypt jest przechowywany jako string w bazie
+        # Musimy go przekonwertować na bytes - bcrypt.checkpw oczekuje bytes
+        if isinstance(hashed_password, str):
+            # Usuń ewentualne białe znaki z hasha
+            hashed_password = hashed_password.strip()
+            # Hash bcrypt jako string można bezpiecznie zakodować jako utf-8
+            # ponieważ zawiera tylko znaki ASCII ($, 0-9, a-z, A-Z, /, .)
+            hashed_password_bytes = hashed_password.encode('utf-8')
+        else:
+            hashed_password_bytes = hashed_password
+        
+        # Zweryfikuj hasło używając bcrypt
+        return bcrypt.checkpw(plain_password_bytes, hashed_password_bytes)
+    except Exception as e:
+        print(f"[ERROR] verify_password exception: {e}")
+        raise
+
+# Alias dla kompatybilności
+def get_password_hash(password: str) -> str:
+    """Alias dla hash_password - używany w innych częściach aplikacji."""
+    return hash_password(password)
 
 # Funkcja do generowania tokenu
 

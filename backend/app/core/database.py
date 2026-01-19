@@ -1,8 +1,9 @@
+import atexit
+
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sshtunnel import SSHTunnelForwarder
-import atexit
 
 from app.core.config import settings
 

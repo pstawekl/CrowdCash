@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     mail_port: int
     mail_use_tls: bool
     app_name: str
+    frontend_url: str = "http://localhost:5173"  # URL frontendu (domyślnie dla developmentu)
     stripe_secret_key: str
     stripe_webhook_secret: str
     supported_currencies: str

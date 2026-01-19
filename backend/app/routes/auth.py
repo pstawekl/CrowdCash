@@ -1,9 +1,11 @@
 import random
+import secrets
 import string
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Form, Header, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas, utils
@@ -148,7 +150,6 @@ async def resend_verification_code(email: str, db: Session = Depends(get_db)):
 async def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(
         models.User.email == form_data.username).first()
-    print("in login")
     if not db_user or not utils.verify_password(form_data.password, db_user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
@@ -474,3 +475,129 @@ async def update_company_settings(
     db.refresh(company)
     
     return company
+
+
+# Schematy dla resetowania hasła
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+def send_reset_password_email(email: str, reset_token: str):
+    """Wysyła email z linkiem do resetowania hasła."""
+    reset_link = f"{settings.frontend_url}/reset-password?token={reset_token}"
+    subject = f'Resetowanie hasła w {settings.app_name}'
+    message = f"""
+    Kliknij w poniższy link, aby zresetować hasło:
+    {reset_link}
+    
+    Link jest ważny przez 1 godzinę.
+    
+    Jeśli nie prosiłeś o reset hasła, zignoruj ten email.
+    """
+    send_email(subject=subject, body=message, to_email=email)
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Wysyła email z tokenem resetującym hasło.
+    Zawsze zwraca sukces dla bezpieczeństwa (nie ujawnia czy email istnieje).
+    """
+    user = crud.get_user_by_email(db, email=request.email)
+    
+    if user:
+        # Wygeneruj bezpieczny token
+        reset_token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+        
+        # Zapisz token w bazie danych
+        # Używamy pola verification_code jako tymczasowego miejsca na token resetujący
+        # Zapisujemy token i czas wygaśnięcia w verification_code (format: token|expires_at)
+        user.verification_code = f"{reset_token}|{expires_at.isoformat()}"
+        db.commit()
+        
+        try:
+            send_reset_password_email(user.email, reset_token)
+        except Exception as e:
+            # Jeśli nie udało się wysłać emaila, wyczyść token
+            user.verification_code = None
+            db.commit()
+            # Nie ujawniaj błędu użytkownikowi
+            pass
+    
+    # Zawsze zwróć sukces (dla bezpieczeństwa)
+    return {
+        "message": "Jeśli konto istnieje, email z linkiem resetującym został wysłany"
+    }
+
+
+@router.post("/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Resetuje hasło użytkownika używając tokenu.
+    """
+    # Sprawdź siłę hasła
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Hasło musi mieć co najmniej 8 znaków"
+        )
+    
+    # Znajdź użytkownika z tym tokenem
+    users = db.query(models.User).all()
+    user_with_token = None
+    
+    for user in users:
+        if user.verification_code:
+            # Sprawdź format: token|expires_at
+            parts = user.verification_code.split('|')
+            if len(parts) == 2:
+                token, expires_at_str = parts
+                if token == request.token:
+                    try:
+                        expires_at = datetime.fromisoformat(expires_at_str.replace('Z', '+00:00'))
+                        if expires_at.tzinfo is None:
+                            expires_at = expires_at.replace(tzinfo=timezone.utc)
+                        
+                        # Sprawdź czy token nie wygasł
+                        if datetime.now(timezone.utc) < expires_at:
+                            user_with_token = user
+                            break
+                        else:
+                            # Token wygasł, wyczyść go
+                            user.verification_code = None
+                            db.commit()
+                    except (ValueError, AttributeError):
+                        # Nieprawidłowy format, kontynuuj
+                        continue
+    
+    if not user_with_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Token jest nieważny lub wygasł"
+        )
+    
+    # Zahashuj nowe hasło
+    hashed_password = utils.get_password_hash(request.new_password)
+    
+    # Upewnij się, że hash nie ma dodatkowych białych znaków
+    hashed_password = hashed_password.strip()
+    
+    # Zaktualizuj hasło użytkownika
+    user_with_token.password_hash = hashed_password
+    user_with_token.verification_code = None  # Wyczyść token po użyciu
+    
+    db.commit()
+    
+    return {"message": "Hasło zostało pomyślnie zmienione"}

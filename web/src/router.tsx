@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import InvestmentDetails from './pages/InvestmentDetails';
 import InvestorDashboard from './pages/InvestorDashboard';
 import InvestorFeed from './pages/InvestorFeed';
+import ForgotPassword from './pages/ForgotPassword';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 import Notifications from './pages/Notifications';
@@ -13,6 +14,7 @@ import PaymentCancel from './pages/PaymentCancel';
 import PaymentFail from './pages/PaymentFail';
 import PaymentSuccess from './pages/PaymentSuccess';
 import Register from './pages/Register';
+import ResetPassword from './pages/ResetPassword';
 import Settings from './pages/Settings';
 import Transactions from './pages/Transactions';
 import Verify from './pages/Verify';
@@ -25,6 +27,8 @@ const homeRoute = createRoute({ path: '/', getParentRoute: () => rootRoute, comp
 const loginRoute = createRoute({ path: '/login', getParentRoute: () => rootRoute, component: Login });
 const registerRoute = createRoute({ path: '/register', getParentRoute: () => rootRoute, component: Register });
 const verifyRoute = createRoute({ path: '/verify', getParentRoute: () => rootRoute, component: Verify });
+const forgotPasswordRoute = createRoute({ path: '/forgot-password', getParentRoute: () => rootRoute, component: ForgotPassword });
+const resetPasswordRoute = createRoute({ path: '/reset-password', getParentRoute: () => rootRoute, component: ResetPassword });
 const feedRoute = createRoute({ path: '/feed', getParentRoute: () => rootRoute, component: InvestorFeed });
 const dashboardRoute = createRoute({ path: '/dashboard', getParentRoute: () => rootRoute, component: EntrepreneurDashboard });
 const investorDashboardRoute = createRoute({ path: '/investor-dashboard', getParentRoute: () => rootRoute, component: InvestorDashboard });
@@ -43,6 +47,8 @@ const routeTree = rootRoute.addChildren([
     loginRoute,
     registerRoute,
     verifyRoute,
+    forgotPasswordRoute,
+    resetPasswordRoute,
     feedRoute,
     dashboardRoute,
     investorDashboardRoute,
