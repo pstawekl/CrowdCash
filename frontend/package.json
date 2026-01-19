@@ -5,10 +5,14 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
-    "emulator": "emulator -avd Medium_Phone_API_35"
+    "emulator": "emulator -avd Medium_Phone_API_35",
+    "build:android": "expo run:android",
+    "build:ios": "expo run:ios",
+    "build:android:device": "expo run:android --device",
+    "build:ios:device": "expo run:ios --device"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",

@@ -94,9 +94,10 @@ export default function BottomTabNavigator({ userRole, onMenuPress, route }: Bot
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userRole]); // Tylko userRole w dependencies, effectiveRole sprawdzamy wewnątrz
     
-    // Obsługa nawigacji z parametrów route (gdy nawigujemy z SideMenu)
+    // Obsługa nawigacji z parametrów route (gdy nawigujemy z SideMenu lub innych ekranów)
     React.useEffect(() => {
         if (route?.params?.screen) {
+            console.log('BottomTabNavigator: Nawigacja do ekranu z parametrów route:', route.params.screen, route.params.params);
             (tabNavigation as any).navigate(route.params.screen, route.params.params);
         }
     }, [route?.params, tabNavigation]);
@@ -143,6 +144,7 @@ export default function BottomTabNavigator({ userRole, onMenuPress, route }: Bot
                                    route.name === 'InvestorHistory' ? 'Historia' : 
                                    route.name === 'Notifications' ? 'Powiadomienia' : 
                                    route.name === 'AppMenu' ? 'Menu aplikacji' : route.name}
+                            showBackButton={route.name === 'Settings'}
                         />
                     ),
                     tabBarActiveTintColor: theme.colors.tabBar.active,
@@ -231,14 +233,21 @@ export default function BottomTabNavigator({ userRole, onMenuPress, route }: Bot
                 key="entrepreneur-tabs" // Key wymusza re-render gdy rola się zmienia
                 screenOptions={{
                     headerShown: true,
-                    header: ({ route }) => (
-                        <AppHeader 
-                            title={route.name === 'EntrepreneurDashboard' ? 'Kampanie' : 
-                                   route.name === 'Notifications' ? 'Powiadomienia' : 
-                                   route.name === 'EntrepreneurProfile' ? 'Profil' : 
-                                   route.name === 'AppMenu' ? 'Menu aplikacji' : route.name}
-                        />
-                    ),
+                    header: ({ route }) => {
+                        // Sprawdź czy to profil innego użytkownika (nie własny)
+                        const isOtherUserProfile = route.name === 'EntrepreneurProfile' && 
+                                                   route.params?.entrepreneurId && 
+                                                   route.params?.entrepreneurId !== 'me';
+                        return (
+                            <AppHeader 
+                                title={route.name === 'EntrepreneurDashboard' ? 'Kampanie' : 
+                                       route.name === 'Notifications' ? 'Powiadomienia' : 
+                                       route.name === 'EntrepreneurProfile' ? 'Profil przedsiębiorcy' : 
+                                       route.name === 'AppMenu' ? 'Menu aplikacji' : route.name}
+                                showBackButton={isOtherUserProfile}
+                            />
+                        );
+                    },
                     tabBarActiveTintColor: theme.colors.tabBar.active,
                     tabBarInactiveTintColor: theme.colors.tabBar.inactive,
                     tabBarStyle: {

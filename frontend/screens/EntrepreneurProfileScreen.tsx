@@ -30,15 +30,15 @@ export default function EntrepreneurProfileScreen({ route }: Props) {
                 
                 setIsOwnProfile(entrepreneurId === 'me');
                 
-                // Pobierz dane użytkownika
-                try {
-                    const userRes = await API.get('/auth/me', {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
-                    setUserInfo(userRes.data);
-                    
-                    // Jeśli to własny profil, użyj danych z /auth/me
-                    if (entrepreneurId === 'me') {
+                // Jeśli to własny profil, użyj danych z /auth/me
+                if (entrepreneurId === 'me') {
+                    // Pobierz dane użytkownika
+                    try {
+                        const userRes = await API.get('/auth/me', {
+                            headers: { Authorization: `Bearer ${token}` },
+                        });
+                        setUserInfo(userRes.data);
+                        
                         // Pobierz profil
                         try {
                             const profileRes = await API.get('/auth/profile', {
@@ -78,16 +78,62 @@ export default function EntrepreneurProfileScreen({ route }: Props) {
                         } catch {
                             setCampaigns([]);
                         }
-                    } else {
-                        // Pobierz profil innego użytkownika
+                    } catch (e: any) {
+                        console.error('Błąd pobierania danych własnego profilu:', e?.response?.status, e?.response?.data);
+                        Alert.alert('Błąd', e?.response?.data?.detail || 'Nie udało się pobrać danych profilu');
+                    }
+                } else {
+                    // Pobierz profil innego użytkownika
+                    console.log('EntrepreneurProfileScreen: Pobieranie profilu przedsiębiorcy, entrepreneurId:', entrepreneurId);
+                    try {
                         const profileRes = await API.get(`/users/${entrepreneurId}/profile`, {
                             headers: { Authorization: `Bearer ${token}` },
                         });
+                        console.log('EntrepreneurProfileScreen: Otrzymano profil:', profileRes.data);
                         setProfile(profileRes.data);
+                        
+                        // Pobierz dane użytkownika (email itp.) dla cudzego profilu
+                        try {
+                            const userRes = await API.get(`/users/${entrepreneurId}`, {
+                                headers: { Authorization: `Bearer ${token}` },
+                            });
+                            console.log('EntrepreneurProfileScreen: Otrzymano dane użytkownika:', userRes.data);
+                            setUserInfo(userRes.data);
+                        } catch (userError: any) {
+                            // Jeśli endpoint /users/{id} nie istnieje, spróbuj użyć danych z profilu
+                            console.warn('EntrepreneurProfileScreen: Nie udało się pobrać danych użytkownika:', userError?.response?.status);
+                            // Użyj danych z profilu jako fallback - sprawdź czy profil zawiera email
+                            if (profileRes.data) {
+                                console.log('EntrepreneurProfileScreen: Używam danych z profilu jako fallback:', profileRes.data);
+                                setUserInfo({ 
+                                    email: profileRes.data.email || profileRes.data.user?.email || '',
+                                    id: profileRes.data.user_id || entrepreneurId
+                                });
+                            }
+                        }
+                        
+                        // Pobierz kampanie tego przedsiębiorcy
+                        try {
+                            const campaignsRes = await API.get(`/users/${entrepreneurId}/campaigns`, {
+                                headers: { Authorization: `Bearer ${token}` },
+                            });
+                            setCampaigns(Array.isArray(campaignsRes.data) ? campaignsRes.data : []);
+                        } catch {
+                            // Jeśli endpoint nie istnieje, spróbuj przez /campaigns z filtrem
+                            try {
+                                const campaignsRes = await API.get(`/campaigns`, {
+                                    headers: { Authorization: `Bearer ${token}` },
+                                    params: { entrepreneur_id: entrepreneurId },
+                                });
+                                setCampaigns(Array.isArray(campaignsRes.data) ? campaignsRes.data : []);
+                            } catch {
+                                setCampaigns([]);
+                            }
+                        }
+                    } catch (e: any) {
+                        console.error('Błąd pobierania danych profilu przedsiębiorcy:', e?.response?.status, e?.response?.data);
+                        Alert.alert('Błąd', e?.response?.data?.detail || 'Nie udało się pobrać danych profilu');
                     }
-                } catch (e: any) {
-                    console.error('Błąd pobierania danych profilu:', e?.response?.status, e?.response?.data);
-                    Alert.alert('Błąd', e?.response?.data?.detail || 'Nie udało się pobrać danych profilu');
                 }
             } catch (e: any) {
                 console.error('Błąd:', e);
@@ -130,8 +176,14 @@ export default function EntrepreneurProfileScreen({ route }: Props) {
 
     if (loading) return <Loader />;
 
-    const displayName = profile?.name || userInfo?.email?.split('@')[0] || 'Użytkownik';
-    const displayEmail = userInfo?.email || '';
+    // Dla własnego profilu używamy userInfo, dla cudzego używamy danych z profilu
+    console.log('EntrepreneurProfileScreen: Wyświetlanie profilu, isOwnProfile:', isOwnProfile, 'entrepreneurId:', entrepreneurId, 'profile:', profile, 'userInfo:', userInfo);
+    const displayName = isOwnProfile 
+        ? (profile?.name || userInfo?.email?.split('@')[0] || 'Użytkownik')
+        : (profile?.name || 'Użytkownik');
+    const displayEmail = isOwnProfile 
+        ? (userInfo?.email || '') 
+        : (userInfo?.email || profile?.email || profile?.user?.email || '');
     const displayBio = profile?.bio || 'Brak opisu';
     const displayLocation = profile?.location || 'Brak lokalizacji';
     const interests = profile?.interests || [];
@@ -152,7 +204,7 @@ export default function EntrepreneurProfileScreen({ route }: Props) {
         >
             <ScrollView 
                 style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
                 showsVerticalScrollIndicator={false}
             >
                 {/* Header z zdjęciem profilowym */}

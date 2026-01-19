@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, Share, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function AppMenuScreen({ navigation, route }: any) {
@@ -40,6 +40,45 @@ export default function AppMenuScreen({ navigation, route }: any) {
             ]
         );
     };
+
+    const handleShareApp = async () => {
+        try {
+            const shareMessage = Platform.select({
+                ios: 'Sprawdź aplikację CrowdCash - platformę crowdfundingową!',
+                android: 'Sprawdź aplikację CrowdCash - platformę crowdfundingową!',
+                default: 'Sprawdź aplikację CrowdCash - platformę crowdfundingową!',
+            });
+
+            // TODO: Dodaj link do sklepu App Store / Google Play gdy aplikacja będzie dostępna
+            const shareUrl = Platform.select({
+                ios: 'https://apps.apple.com/app/crowdcash', // Zastąp rzeczywistym linkiem
+                android: 'https://play.google.com/store/apps/details?id=com.pstawekl.crowdcashapp', // Zastąp rzeczywistym linkiem
+                default: 'https://crowdcash.app', // Zastąp rzeczywistym linkiem
+            });
+
+            const result = await Share.share({
+                message: `${shareMessage}\n\n${shareUrl}`,
+                title: 'Udostępnij CrowdCash',
+                url: shareUrl, // Działa tylko na iOS
+            });
+
+            if (result.action === Share.sharedAction) {
+                if (result.activityType) {
+                    // Udostępniono przez konkretną aplikację (iOS)
+                    console.log('Udostępniono przez:', result.activityType);
+                } else {
+                    // Udostępniono (Android)
+                    console.log('Aplikacja została udostępniona');
+                }
+            } else if (result.action === Share.dismissedAction) {
+                // Użytkownik anulował udostępnianie
+                console.log('Udostępnianie anulowane');
+            }
+        } catch (error: any) {
+            Alert.alert('Błąd', 'Nie udało się udostępnić aplikacji. Spróbuj ponownie.');
+            console.error('Błąd udostępniania aplikacji:', error);
+        }
+    };
     
     const menuOptions = [
         {
@@ -53,15 +92,17 @@ export default function AppMenuScreen({ navigation, route }: any) {
             icon: 'settings',
             label: 'Ustawienia',
             onPress: () => {
-                navigation.navigate('Settings');
+                // Nawiguj do Settings w BottomTabNavigator przez MainTabs
+                rootNavigation.navigate('MainTabs', { 
+                    screen: 'Settings'
+                });
             },
         },
         {
             icon: 'info',
             label: 'O aplikacji',
             onPress: () => {
-                // TODO: Navigate to about screen
-                console.log('O aplikacji');
+                rootNavigation.navigate('About');
             },
         },
         {
@@ -76,16 +117,14 @@ export default function AppMenuScreen({ navigation, route }: any) {
             icon: 'privacy-tip',
             label: 'Polityka prywatności',
             onPress: () => {
-                // TODO: Navigate to privacy policy screen
-                console.log('Polityka prywatności');
+                rootNavigation.navigate('PrivacyPolicy');
             },
         },
         {
             icon: 'description',
             label: 'Warunki użytkowania',
             onPress: () => {
-                // TODO: Navigate to terms screen
-                console.log('Warunki użytkowania');
+                rootNavigation.navigate('TermsOfService');
             },
         },
         {
@@ -99,10 +138,7 @@ export default function AppMenuScreen({ navigation, route }: any) {
         {
             icon: 'share',
             label: 'Udostępnij aplikację',
-            onPress: () => {
-                // TODO: Share app
-                console.log('Udostępnij aplikację');
-            },
+            onPress: handleShareApp,
         },
         {
             icon: 'rate-review',
@@ -165,7 +201,7 @@ export default function AppMenuScreen({ navigation, route }: any) {
                 </View>
 
                 <View style={styles.footer}>
-                    <Text style={[styles.footerText, { color: theme.colors.text }]}>Crowdoo</Text>
+                    <Text style={[styles.footerText, { color: theme.colors.text }]}>CrowdCash</Text>
                     <Text style={[styles.footerVersion, { color: theme.colors.textSecondary }]}>Wersja 1.0.0</Text>
                 </View>
             </ScrollView>

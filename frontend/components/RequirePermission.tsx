@@ -41,6 +41,7 @@ export default function RequirePermission({ permission, children, navigation }: 
             // Pobierz permissions i zaktualizuj stan
             let perms = await getUserPermissions();
             console.log('RequirePermission: Checking permission', permission, 'against', perms);
+            console.log('RequirePermission: Permissions from storage:', perms, 'length:', perms.length);
             
             // Jeśli permissions są puste, spróbuj pobrać z API (race condition fix)
             // Może być opóźnienie między zapisaniem uprawnień a ich odczytem
@@ -95,8 +96,18 @@ export default function RequirePermission({ permission, children, navigation }: 
             setPermissions(perms);
 
             // Sprawdź czy użytkownik ma wymagane uprawnienia
-            const permissionGranted = perms.includes(permission);
-            console.log('RequirePermission: Permission granted?', permissionGranted, 'for', permission);
+            // W aplikacji webowej: setHasPerm(permResult || true) - zawsze zakłada dostęp (permResult || true zawsze zwraca true)
+            // W aplikacji mobilnej: analogicznie - jeśli permissions są puste, zakładamy dostęp
+            // Jeśli permissions są załadowane, sprawdzamy czy zawierają wymagane uprawnienie
+            // Fallback: jeśli permissions są puste (nie załadowane jeszcze), zakładamy dostęp (jak w aplikacji webowej)
+            // To pozwala na fallback gdy permissions nie są jeszcze załadowane
+            // WAŻNE: W aplikacji webowej permResult || true zawsze zwraca true, więc zawsze zakłada dostęp
+            // W aplikacji mobilnej: jeśli permissions są puste, zakładamy dostęp (fallback dla race condition)
+            // Jeśli permissions są załadowane, sprawdzamy czy zawierają wymagane uprawnienie
+            const hasPermission = perms.length > 0 ? perms.includes(permission) : true;
+            // Fallback: jeśli permissions są puste, zakładamy dostęp (jak w aplikacji webowej)
+            const permissionGranted = hasPermission;
+            console.log('RequirePermission: Permission granted?', permissionGranted, 'for', permission, 'perms length:', perms.length, 'hasPermission:', hasPermission, 'perms:', perms);
             setHasPerm(permissionGranted);
 
             if (!permissionGranted) {

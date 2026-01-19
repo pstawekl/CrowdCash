@@ -416,7 +416,13 @@ export default function InvestmentDetailsScreen({ route, navigation }: Props) {
                     {campaign.entrepreneur_id && (
                         <TouchableOpacity 
                             style={styles.infoRow}
-                            onPress={() => navigation.navigate('EntrepreneurProfile', { entrepreneurId: campaign.entrepreneur_id })}
+                            onPress={() => {
+                                // Nawiguj do profilu przez MainTabs, aby BottomTabNavigator był widoczny
+                                (navigation as any).navigate('MainTabs', { 
+                                    screen: 'EntrepreneurProfile',
+                                    params: { entrepreneurId: campaign.entrepreneur_id }
+                                });
+                            }}
                         >
                             <MaterialIcons name="person" size={20} color={theme.colors.primary} />
                             <View style={styles.infoContent}>
@@ -548,8 +554,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 50,
+        paddingHorizontal: 10,
         paddingBottom: 12,
         borderBottomWidth: 0.5,
         shadowColor: '#000',

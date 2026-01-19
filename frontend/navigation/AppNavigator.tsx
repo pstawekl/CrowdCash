@@ -3,17 +3,21 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import AppHeader from '../components/AppHeader';
 import HamburgerButton from '../components/HamburgerButton';
 import LogoutIcon from '../components/Icons/LogoutIcon';
 import Loader from '../components/Loader';
 import SideMenu from '../components/SideMenu';
+import AboutScreen from '../screens/AboutScreen';
 import EntrepreneurProfileScreen from '../screens/EntrepreneurProfileScreen';
 import InvestmentDetailsScreen from '../screens/InvestmentDetailsScreen';
 import InvestmentsScreen from '../screens/InvestmentsScreen';
 import InvestorTransactionsScreen from '../screens/InvestorTransactionsScreen';
 import LoginScreen from '../screens/LoginScreen';
+import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import TermsOfServiceScreen from '../screens/TermsOfServiceScreen';
 import VerifyScreen from '../screens/VerifyScreen';
 import API from '../utils/api';
 import { getUserPermissions } from '../utils/permissions';
@@ -34,6 +38,9 @@ export type RootStackParamList = {
     InvestorTransactions: undefined;
     Notifications: undefined;
     Settings: undefined;
+    About: undefined;
+    PrivacyPolicy: undefined;
+    TermsOfService: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -533,7 +540,7 @@ export default function AppNavigator() {
                             <HamburgerButton onPress={() => setMenuVisible(true)} />
                         ),
                         headerRight: () => (
-                            <Text style={{ color: "#fff", fontWeight: 'bold', fontSize: 16 }}>Crowdoo</Text>
+                            <Text style={{ color: "#fff", fontWeight: 'bold', fontSize: 16 }}>CrowdCash</Text>
                             // <HeaderDropdownMenu options={role === 'investor' ? investorMenu : role === 'entrepreneur' ? entrepreneurMenu : []} />
                         ),
                     }}
@@ -566,9 +573,51 @@ export default function AppNavigator() {
                             headerShown: false // Ukryj domyślny header, używamy custom headerFixed
                         }} 
                     />
-                    <Stack.Screen name="EntrepreneurProfile" component={EntrepreneurProfileScreen} options={{ title: 'Profil przedsiębiorcy', headerShown: true }} />
+                    <Stack.Screen 
+                        name="EntrepreneurProfile" 
+                        component={EntrepreneurProfileScreen} 
+                        options={{ 
+                            title: 'Profil przedsiębiorcy', 
+                            headerShown: true,
+                            header: () => <AppHeader title="Profil przedsiębiorcy" showBackButton={true} />,
+                            headerLeft: () => null, // Ukryj domyślny hamburger
+                        }} 
+                    />
                     <Stack.Screen name="InvestorTransactions" component={InvestorTransactionsScreen} options={{ title: 'Historia transakcji', headerShown: true }} />
-                    <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ustawienia', headerShown: true }} />
+                    <Stack.Screen 
+                        name="Settings" 
+                        component={SettingsScreen} 
+                        options={{ 
+                            title: 'Ustawienia', 
+                            headerShown: true,
+                            header: () => <AppHeader title="Ustawienia" showBackButton={true} />,
+                            headerLeft: () => null, // Ukryj domyślny hamburger
+                        }} 
+                    />
+                    <Stack.Screen 
+                        name="About" 
+                        component={AboutScreen} 
+                        options={{ 
+                            title: 'O aplikacji', 
+                            headerShown: false,
+                        }} 
+                    />
+                    <Stack.Screen 
+                        name="PrivacyPolicy" 
+                        component={PrivacyPolicyScreen} 
+                        options={{ 
+                            title: 'Polityka prywatności', 
+                            headerShown: false,
+                        }} 
+                    />
+                    <Stack.Screen 
+                        name="TermsOfService" 
+                        component={TermsOfServiceScreen} 
+                        options={{ 
+                            title: 'Warunki użytkowania', 
+                            headerShown: false,
+                        }} 
+                    />
                 </Stack.Navigator>
             </NavigationContainer>
             <SideMenu visible={menuVisible} onClose={() => setMenuVisible(false)}>
